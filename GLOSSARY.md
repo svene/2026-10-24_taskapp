@@ -13,11 +13,15 @@ A Task that is done exactly once; once done, it leaves the active Board.
 _Avoid_: One-time task, single task
 
 **Recurring Task**:
-A Task that comes back on a schedule.
-_Avoid_: Periodical task, repeating task, routine
+A Task defined by a schedule; it is never on the Board itself, but produces Occurrences that are.
+_Avoid_: Periodical task, repeating task, routine, template
+
+**Occurrence**:
+One instance of a Recurring Task for one due date; it moves through the Columns like a One-off Task.
+_Avoid_: Instance, iteration, card
 
 **Board**:
-The kanban view of all active Tasks, arranged in Columns.
+The kanban view of active One-off Tasks and Occurrences, arranged in Columns.
 _Avoid_: Dashboard, list
 
 **Column**:

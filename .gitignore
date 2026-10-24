@@ -1,0 +1,24 @@
+# Maven / Java
+target/
+*.class
+
+# IntelliJ
+.idea/
+*.iml
+
+# Other IDEs
+.vscode/
+.factorypath
+.settings/
+.project
+.classpath
+
+# Quarkus
+/.quarkus/
+
+# Browser templating build output (frontend-maven-plugin, esbuild)
+node/
+node_modules/
+
+# custom
+.not-commited/

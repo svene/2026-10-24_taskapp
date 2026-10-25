@@ -30,10 +30,14 @@ _Avoid_: Deleted, archived, cancelled
 
 **Occurrence**:
 One instance of a Recurring Task for one due date; once produced, it is ticked off and rescheduled like a One-off Task.
-_Avoid_: Instance, iteration, card
+_Avoid_: Instance, iteration
+
+**Card**:
+A One-off Task or Occurrence: the thing on the Board that has a due date, is moved and is ticked off. A Recurring Task is never a Card.
+_Avoid_: Item, entry, ticket
 
 **Due date**:
-The day by which a One-off Task or Occurrence should be done; always set, and changed by rescheduling.
+The day by which a Card should be done; always set, and changed by rescheduling.
 _Avoid_: Deadline
 
 **Original due date**:
@@ -45,19 +49,19 @@ An open Occurrence due after today whose original due date its Recurring Task's 
 _Avoid_: Orphan, obsolete
 
 **Move**:
-Placing a One-off Task or Occurrence on a day (today or later) at a place in that day's order; on another day it is a reschedule, on the same day a reorder. Only the due date and the order change.
+Placing a Card on a day (today or later) at a place in that day's order; on another day it is a reschedule, on the same day a reorder. Only the due date and the order change.
 _Avoid_: Drag, reorder, shift
 
 **Overdue**:
-A One-off Task or Occurrence whose due date has passed and that is not done.
+A Card whose due date has passed and that is not done.
 _Avoid_: Late, missed
 
 **Done**:
-A One-off Task or Occurrence the owner has ticked off, on a particular day; unticking makes it open again and undoes nothing else. There is no deleting: a task the owner no longer wants is ticked off.
+A Card the owner has ticked off, on a particular day; unticking makes it open again and undoes nothing else. There is no deleting: a task the owner no longer wants is ticked off.
 _Avoid_: Completed, closed, finished, deleted
 
 **Board**:
-The calendar-style view of One-off Tasks and Occurrences: one Column per day for a rolling span starting today, followed by Future.
+The calendar-style view of Cards: one Column per day for a rolling span starting today, followed by Future.
 _Avoid_: Dashboard, list, calendar, kanban
 
 **Column**:
@@ -65,8 +69,8 @@ One vertical strip of the Board: either a single day, or Future.
 _Avoid_: Lane, status, swimlane, backlog, stage
 
 **Today**:
-The first Column of the Board; it also shows every open Overdue One-off Task and Occurrence.
+The first Column of the Board; it also shows every Overdue Card.
 
 **Future**:
-The last Column of the Board, showing the nearest few One-off Tasks and Occurrences due after the span.
+The last Column of the Board, showing the nearest few Cards due after the span.
 _Avoid_: Later, backlog

@@ -44,6 +44,10 @@ _Avoid_: Orphan, obsolete
 A One-off Task or Occurrence whose due date has passed and that is not done.
 _Avoid_: Late, missed
 
+**Done**:
+A One-off Task or Occurrence the owner has ticked off, on a particular day; unticking makes it open again and undoes nothing else. There is no deleting: a task the owner no longer wants is ticked off.
+_Avoid_: Completed, closed, finished, deleted
+
 **Board**:
 The calendar-style view of One-off Tasks and Occurrences: one Column per day for a rolling span starting today, followed by Future.
 _Avoid_: Dashboard, list, calendar, kanban

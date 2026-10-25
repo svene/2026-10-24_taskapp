@@ -1,0 +1,12 @@
+{
+  "name": "board-prototype",
+  "private": true,
+  "description": "PROTOTYPE, throwaway: Board look and behaviour (issue #5). In-memory, no persistence.",
+  "scripts": { "start": "bun --watch server.ts" },
+  "dependencies": {
+    "hono": "4.13.13",
+    "htmx.org": "4.0.0",
+    "bulma": "1.0.4",
+    "sortablejs": "1.15.7"
+  }
+}

@@ -1,0 +1,85 @@
+/* PROTOTYPE, throwaway styles for the Board variants */
+html, body { height: 100%; }
+body { background: #f5f6f8; font-size: 14px; }
+#app { padding: .5rem .75rem 4rem; }
+.topbar { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; margin-bottom: .5rem; }
+.topbar .legend { margin-left: auto; font-size: 12px; }
+
+/* ---- column ---- */
+.col { background: #fff; border-radius: 6px; padding: .35rem; display: flex; flex-direction: column; min-width: 0; border: 1px solid #e3e5e8; }
+.col.is-weekend { background: #fbfaf6; }
+.col.is-today { border: 2px solid hsl(229, 53%, 53%); }
+.col.future { background: #f0f2f5; }
+.colhead { display: flex; align-items: baseline; gap: .3rem; padding: 0 .15rem .3rem; white-space: nowrap; }
+.colhead .day { font-weight: 600; }
+.colhead .date { color: #888; font-size: 12px; }
+.colhead .count { margin-left: auto; color: #888; font-size: 12px; }
+.plus { border: 0; background: none; cursor: pointer; color: #888; font-size: 16px; line-height: 1; padding: 0 .2rem; }
+.plus:hover { color: #333; }
+.cards { min-height: 2.2rem; flex: 1; display: flex; flex-direction: column; gap: .25rem; }
+.overdue-list { display: flex; flex-direction: column; gap: .25rem; padding: .25rem; margin-bottom: .35rem; background: #fdecec; border-radius: 4px; }
+.overdue-list::before { content: "Overdue"; font-size: 11px; color: #b33; font-weight: 600; }
+.quick { margin-top: .3rem; }
+.quick .input { border-color: transparent; box-shadow: none; background: transparent; }
+.quick .input:focus { border-color: #ccc; background: #fff; }
+
+/* ---- card ---- */
+.tcard { display: flex; gap: .3rem; align-items: flex-start; background: #fff; border: 1px solid #dde0e4; border-radius: 4px; padding: .3rem .35rem; cursor: grab; position: relative; }
+.tcard:hover { border-color: #aab; }
+.tcard.is-done { cursor: default; background: #f6f6f6; color: #999; }
+.tcard.is-done .ttl { text-decoration: line-through; }
+.tcard.is-overdue { border-left: 3px solid #e04848; }
+.tcard.is-stale { border-left: 3px dashed #e0a800; opacity: .85; }
+.tcard .tick { border: 0; background: none; cursor: pointer; font-size: 15px; line-height: 1.2; padding: 0; }
+.tcard .body { flex: 1; min-width: 0; }
+.tcard .ttl { overflow-wrap: anywhere; line-height: 1.25; }
+.tcard .meta { display: flex; flex-wrap: wrap; gap: .25rem; font-size: 11px; color: #777; }
+.tcard .meta:empty { display: none; }
+.tcard .meta .tag { font-size: 10px; height: 1.5em; }
+.tcard .mk.od { color: #c33; }
+.tcard .notes { font-size: 12px; color: #666; margin-top: .15rem; }
+.tcard .acts { display: flex; gap: 1px; }
+.tcard .acts button { border: 0; background: #eef0f3; font-size: 10px; border-radius: 3px; cursor: pointer; padding: 1px 3px; color: #445; }
+.tcard .acts button:hover { background: #dde1e8; }
+.tcard.compact .acts, .tcard.row .acts { display: none; position: absolute; right: 2px; top: -9px; background: #fff; border: 1px solid #ccd; border-radius: 3px; padding: 1px; z-index: 5; }
+.tcard.compact:hover .acts, .tcard.row:hover .acts { display: flex; }
+.ghost { opacity: .35; background: #dfe8ff; }
+
+/* ---- A: scroll strip ---- */
+.v-a { display: flex; gap: .4rem; overflow-x: auto; align-items: stretch; min-height: calc(100vh - 7rem); padding-bottom: .5rem; scroll-snap-type: x proximity; }
+.v-a > .col { flex: 0 0 12.5rem; scroll-snap-align: start; }
+.v-a > .col.is-today { position: sticky; left: 0; z-index: 3; box-shadow: 4px 0 8px -4px rgba(0,0,0,.2); }
+
+/* ---- B: two weeks ---- */
+.v-b { display: grid; grid-template-columns: 1fr 14rem; gap: .4rem; }
+.v-b .weeks { display: grid; grid-template-rows: 1fr 1fr; gap: .4rem; min-height: calc(100vh - 7rem); }
+.v-b .week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: .3rem; }
+.v-b .tcard { font-size: 12.5px; }
+
+/* ---- C: focus + agenda ---- */
+.v-c { display: grid; grid-template-columns: minmax(18rem, 26rem) 1fr 15rem; gap: .6rem; align-items: start; }
+.v-c .focus { min-height: calc(100vh - 7rem); font-size: 15px; }
+.v-c .focus .tcard { padding: .5rem; }
+.v-c .agenda { background: #fff; border: 1px solid #e3e5e8; border-radius: 6px; max-height: calc(100vh - 7rem); overflow-y: auto; }
+.v-c .aday { display: grid; grid-template-columns: 7.5rem 1fr; border-top: 1px solid #eee; padding: .2rem .4rem; }
+.v-c .aday.is-monday { border-top: 2px solid #c8ccd4; }
+.v-c .aday.is-weekend { background: #fbfaf6; }
+.v-c .ahead { white-space: nowrap; padding-top: .2rem; color: #555; }
+.v-c .alist .cards { min-height: 1.8rem; }
+.v-c .tcard.row { border: 0; border-bottom: 1px dotted #e3e3e3; border-radius: 0; padding: .15rem .2rem; align-items: center; }
+.v-c .tcard.row .body { display: flex; gap: .5rem; align-items: baseline; }
+
+/* ---- modal schedule ---- */
+.kinds label input { margin-right: .3rem; }
+.sched .only-calendar, .sched .only-interval, .sched .only-weekly, .sched .only-monthly { display: none; }
+.sched[data-kind="calendar"] .only-calendar { display: block; }
+.sched[data-kind="interval"] .only-interval { display: block; }
+.sched[data-cal="weekly"] .only-weekly, .sched[data-cal="monthly"] .only-monthly { display: block; }
+.sched .box { background: #f6f7f9; padding: .6rem; margin-bottom: .5rem; }
+.num { width: 4.5rem; display: inline-block; }
+.wds label { margin-right: .5rem; }
+.preview:empty { display: none; }
+
+/* ---- prototype switcher (not part of the design) ---- */
+.proto-switcher { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); z-index: 50; background: #111; color: #fff; border-radius: 999px; padding: .35rem .9rem; display: flex; gap: .9rem; align-items: center; box-shadow: 0 4px 14px rgba(0,0,0,.35); font: 13px/1.2 system-ui, sans-serif; }
+.proto-switcher a { color: #fff; font-size: 18px; }

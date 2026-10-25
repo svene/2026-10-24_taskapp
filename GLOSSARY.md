@@ -17,8 +17,12 @@ A Task defined by a schedule; it is never on the Board itself, but produces Occu
 _Avoid_: Periodical task, repeating task, routine, template
 
 **Schedule**:
-The rule of a Recurring Task that decides the due dates of its Occurrences: either calendar-based (e.g. every second Monday) or a fixed interval after the previous Occurrence is done.
+The rule of a Recurring Task that decides the due dates of its Occurrences: either a calendar Schedule (weekly on chosen weekdays every N weeks, monthly on a day, or monthly on the last day) or an After-done Schedule (a fixed number of days or weeks after the previous Occurrence is done).
 _Avoid_: Recurrence, rule, cadence
+
+**Start date**:
+The first day for which a Schedule can produce an Occurrence; for an After-done Schedule, the due date of its first Occurrence.
+_Avoid_: Seed, anchor, begin date
 
 **Stopped**:
 A Recurring Task that produces no further Occurrences; Occurrences it already produced remain.

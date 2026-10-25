@@ -44,6 +44,10 @@ _Avoid_: Planned date, initial date
 An open Occurrence due after today whose original due date its Recurring Task's current Schedule would no longer produce, because the Schedule was edited or the Recurring Task was Stopped.
 _Avoid_: Orphan, obsolete
 
+**Move**:
+Placing a One-off Task or Occurrence on a day (today or later) at a place in that day's order; on another day it is a reschedule, on the same day a reorder. Only the due date and the order change.
+_Avoid_: Drag, reorder, shift
+
 **Overdue**:
 A One-off Task or Occurrence whose due date has passed and that is not done.
 _Avoid_: Late, missed

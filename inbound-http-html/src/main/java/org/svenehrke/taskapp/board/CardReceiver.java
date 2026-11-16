@@ -13,7 +13,9 @@ import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.Response.Status;
+import java.time.LocalDate;
 import java.util.Objects;
+import org.svenehrke.taskapp.board.BoardVM.EditCardVM;
 import org.svenehrke.taskapp.board.BoardVM.NewCardVM;
 import org.svenehrke.taskapp.board.BoardVM.QuickAddError;
 import org.svenehrke.taskapp.card.CardHandler;
@@ -22,7 +24,7 @@ import org.svenehrke.taskapp.html.UiResponse;
 import org.svenehrke.taskapp.html.UiRoute;
 
 /**
- * Creating, ticking off and moving Cards. It lives in {@code board}, not {@code card}: every response is the Board, and {@code card}
+ * Creating, editing, ticking off and moving Cards. It lives in {@code board}, not {@code card}: every response is the Board, and {@code card}
  * must not depend on {@code board} (board → card already).
  */
 @RunOnVirtualThread
@@ -95,6 +97,41 @@ public class CardReceiver {
     public UiResponse move(@PathParam("id") long id, @FormParam("target") String target, @FormParam("before") String before) {
         cardHandler.move(id, target, cardId(before));
         return UiResponse.of(UiRoute.BoardPage, BoardVM.of(boardHandler.board()));
+    }
+
+    /** The Board with the Edit modal of a One-off Task open. An Occurrence or unknown id is rejected (409). */
+    @GET
+    @Path("{id}/edit")
+    public UiResponse edit(@PathParam("id") long id) {
+        var board = boardHandler.board();
+        return UiResponse.of(UiRoute.BoardPage, BoardVM.of(board, EditCardVM.of(cardHandler.oneOff(id), today(board))));
+    }
+
+    /**
+     * The Edit modal's save: title, notes and due date. A changed due date is a Move to the bottom of that day.
+     * Invalid input re-opens the modal with its messages (400); a rejected Move answers 409 and saves nothing.
+     */
+    @POST
+    @Path("{id}")
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    public Response save(@PathParam("id") long id, @FormParam("title") String title, @FormParam("notes") String notes,
+        @FormParam("dueOn") String dueOn) {
+        return switch (ParsedOneOffTask.parse(title, notes, dueOn)) {
+            case ParsedOneOffTask.Valid task -> {
+                cardHandler.editOneOff(id, task.title(), task.notes(), task.dueOn());
+                yield UiResponse.response(Status.OK, UiRoute.BoardPage, BoardVM.of(boardHandler.board()));
+            }
+            case ParsedOneOffTask.Invalid invalid -> {
+                var board = boardHandler.board();
+                var form = EditCardVM.rejected(cardHandler.oneOff(id), today(board), orEmpty(title), orEmpty(notes),
+                    orEmpty(dueOn), invalid.errors());
+                yield UiResponse.response(Status.BAD_REQUEST, UiRoute.BoardPage, BoardVM.of(board, form));
+            }
+        };
+    }
+
+    private static LocalDate today(Board board) {
+        return board.days().getFirst().date();
     }
 
     /** A card id, or {@code null} when blank or not a number (the Move then goes to the bottom). */

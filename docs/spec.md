@@ -306,7 +306,7 @@ Decided in [Run setup for the built app](https://github.com/svene/2026-10-24_tas
 - **Start:** `taskapp`, by hand, in the foreground, logging to the console. Ctrl-C stops it. No autostart, no browser auto-open.
 - **Network:** binds `127.0.0.1:7070` only (override via `QUARKUS_HTTP_PORT`). A busy port fails startup.
 - **DB path:** `taskapp.db.path` (env `TASKAPP_DB_PATH`), default `~/.local/share/taskapp/taskapp.db`. The parent directory is created if missing. Tests use a fresh temp file.
-- **Backup:** on every startup, before Flyway migrates, the app writes `VACUUM INTO ~/.local/share/taskapp/backups/taskapp-<timestamp>.db` and keeps the last 7.
+- **Backup:** on every startup, before Flyway migrates, the app writes `VACUUM INTO ~/.local/share/taskapp/backups/taskapp-<timestamp>.db` and keeps the last 7. `backups/` sits next to the DB file, so it follows `TASKAPP_DB_PATH`; no backup while the DB file does not exist yet.
 
 ## 7. Testing and docs
 

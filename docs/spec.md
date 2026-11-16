@@ -246,7 +246,8 @@ Decided in:
 - [Schedule representation and persistence](https://github.com/svene/2026-10-24_taskapp/issues/6)
 
 - **SQLite**, one file. Module `outbound-sqlite` uses plain JDBC + Flyway (`quarkus-jdbc-sqlite`). No container.
-- Dates are ISO text with `check (x = date(x))`, bound as strings. Every table is `STRICT`.
+- Dates are ISO text with `check (x is date(x))`, bound as strings. Every table is `STRICT`.
+  - `is`, not `=`: `date()` is null for text it cannot parse (e.g. `25.10.2026`), and `x = null` is null, which a check lets through. `x is date(x)` is false there, and still true for a null column.
 - Each connection runs `PRAGMA foreign_keys = ON`, WAL and `busy_timeout`. The Agroal pool size is 1.
 - One `card` table holds One-off Tasks and Occurrences (`recurring_task_id` null = One-off). The card reference in URLs is its `id`.
 - Facts only, no status column:
@@ -254,19 +255,19 @@ Decided in:
   - Overdue, Stale and rescheduled (`due_on <> original_due_on`) are derived.
 - `weekdays` is a 7-bit bitmask (Mon = 1 … Sun = 64).
 - No audit timestamps, no version column, no cascade (nothing is deleted).
-- **Migration** `V1__initial_schema.sql`, in full, as it stands in the [resolution of the table-schema ticket](https://github.com/svene/2026-10-24_taskapp/issues/10):
+- **Migration** `V1__initial_schema.sql`, in full, as in the [resolution of the table-schema ticket](https://github.com/svene/2026-10-24_taskapp/issues/10), with the date checks changed from `=` to `is` during the [Walking skeleton](https://github.com/svene/2026-10-24_taskapp/issues/15):
 
 ```sql
 create table recurring_task (
     id integer primary key,
     title text not null check (trim(title) <> ''),
     notes text,
-    starts_on text not null check (starts_on = date(starts_on)),
-    stopped_on text check (stopped_on = date(stopped_on)),
+    starts_on text not null check (starts_on is date(starts_on)),
+    stopped_on text check (stopped_on is date(stopped_on)),
     kind text not null check (kind in ('WEEKLY','MONTHLY_DAY','MONTHLY_LAST','AFTER_DONE')),
     every_weeks integer, weekdays integer, month_day integer,
     after_amount integer, after_unit text,
-    produced_through text check (produced_through = date(produced_through)),
+    produced_through text check (produced_through is date(produced_through)),
     check (kind <> 'WEEKLY' or (every_weeks >= 1 and weekdays between 1 and 127
         and month_day is null and after_amount is null and after_unit is null and produced_through is not null)),
     check (kind <> 'MONTHLY_DAY' or (month_day between 1 and 28
@@ -281,10 +282,10 @@ create table card (
     id integer primary key,
     recurring_task_id integer references recurring_task (id),
     title text, notes text,
-    due_on text not null check (due_on = date(due_on)),
-    original_due_on text not null check (original_due_on = date(original_due_on)),
+    due_on text not null check (due_on is date(due_on)),
+    original_due_on text not null check (original_due_on is date(original_due_on)),
     position integer not null check (position >= 0),
-    done_on text check (done_on = date(done_on)),
+    done_on text check (done_on is date(done_on)),
     check ((recurring_task_id is null and trim(title) <> '')
         or (recurring_task_id is not null and title is null and notes is null)),
     unique (recurring_task_id, original_due_on)
@@ -297,7 +298,7 @@ create index card_due_on_position on card (due_on, position);
 
 Decided in [Run setup for the built app](https://github.com/svene/2026-10-24_taskapp/issues/12).
 
-- **Dev:** `quarkus dev` on port 8080. The `%dev` DB is `app-server/.data/dev.db` (gitignored).
+- **Dev:** `quarkus dev` on port 8080. The `%dev` DB is `app-server/.data/taskapp/dev.db` (gitignored).
 - **Built:**
   - Quarkus uber-jar, no native build.
   - `install.sh` builds it and copies it to `~/.local/share/taskapp/taskapp.jar`, and copies `bin/taskapp` to `~/.local/bin/taskapp`. The script is `exec java -jar … "$@"`.

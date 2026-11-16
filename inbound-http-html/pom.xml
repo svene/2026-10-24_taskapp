@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.svenehrke</groupId>
+    <artifactId>taskapp</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>inbound-http-html</artifactId>
+  <packaging>jar</packaging>
+
+  <name>inbound-http-html</name>
+  <description>Inbound adapter: JAX-RS resources that translate browser requests into calls against core Handlers
+    and answer with a JSON {route, vm} envelope that the browser renders (see docs/spec.md §4.4).</description>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.svenehrke</groupId>
+      <artifactId>core</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-rest</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-rest-jackson</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+    </dependency>
+  </dependencies>
+
+  <!--
+    Browser-side templating: the hono/html templates (*.ts next to the receivers) are bundled by esbuild into
+    META-INF/resources/js/hono/hx-hono.js, so the bundle ships inside this module's jar.
+    typescript-generator must stay declared before frontend-maven-plugin: both run in process-classes,
+    and tsc type-checks against the VM types it writes. routes.ts `satisfies Record<UiRoute, …>`, so the
+    typecheck (and with it the build) fails when a UiRoute has no template.
+  -->
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>cz.habarta.typescript-generator</groupId>
+        <artifactId>typescript-generator-maven-plugin</artifactId>
+        <version>4.1.1</version>
+        <executions>
+          <execution>
+            <id>generate</id>
+            <goals><goal>generate</goal></goals>
+            <phase>process-classes</phase>
+          </execution>
+        </executions>
+        <configuration>
+          <jsonLibrary>jackson2</jsonLibrary>
+          <classPatterns>
+            <pattern>org.svenehrke.taskapp.**VM</pattern>
+          </classPatterns>
+          <classes>
+            <class>org.svenehrke.taskapp.html.UiRoute</class>
+          </classes>
+          <outputFile>${project.basedir}/src/main/java/org/svenehrke/taskapp/html/generated/vm-types.d.ts</outputFile>
+          <outputFileType>declarationFile</outputFileType>
+          <outputKind>module</outputKind>
+          <mapClasses>asInterfaces</mapClasses>
+          <mapEnum>asUnion</mapEnum>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>com.github.eirslett</groupId>
+        <artifactId>frontend-maven-plugin</artifactId>
+        <version>2.0.2</version>
+        <configuration>
+          <nodeVersion>v24.21.0</nodeVersion>
+        </configuration>
+        <executions>
+          <execution>
+            <id>install-node-and-npm</id>
+            <goals><goal>install-node-and-npm</goal></goals>
+            <phase>initialize</phase>
+          </execution>
+          <execution>
+            <id>npm-ci</id>
+            <goals><goal>npm</goal></goals>
+            <phase>initialize</phase>
+            <configuration><arguments>ci</arguments></configuration>
+          </execution>
+          <execution>
+            <!-- esbuild only strips types, so it doesn't need the generated VM types yet -->
+            <id>npm-build</id>
+            <goals><goal>npm</goal></goals>
+            <phase>generate-resources</phase>
+            <configuration><arguments>run build</arguments></configuration>
+          </execution>
+          <execution>
+            <!-- after typescript-generator (declared above, same phase) has written the VM types -->
+            <id>npm-typecheck</id>
+            <goals><goal>npm</goal></goals>
+            <phase>process-classes</phase>
+            <configuration><arguments>run typecheck</arguments></configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

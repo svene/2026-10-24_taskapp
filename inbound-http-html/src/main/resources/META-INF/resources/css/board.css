@@ -1,0 +1,20 @@
+/* The Board (board.ts): two rows of 7 day Columns, Future as a sidebar. Bulma CSS variables only, so both themes work. */
+body { min-height: 100vh; background: var(--bulma-background); font-size: 14px; }
+.topbar { display: flex; align-items: center; justify-content: space-between; padding: .5rem .75rem; }
+.topbar .title { margin-bottom: 0; }
+#app { padding: 0 .75rem 1rem; }
+
+.board { display: grid; grid-template-columns: 1fr 14rem; gap: .4rem; }
+.board .weeks { display: grid; grid-template-rows: 1fr 1fr; gap: .4rem; min-height: calc(100vh - 4rem); }
+.board .week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: .3rem; }
+
+.board-column { display: flex; flex-direction: column; min-width: 0; padding: .35rem;
+	background: var(--bulma-scheme-main); border: 1px solid var(--bulma-border-weak); border-radius: var(--bulma-radius); }
+.board-column.is-weekend { background: var(--bulma-scheme-main-ter); }
+.board-column.is-today { border: 2px solid var(--bulma-link); }
+.board-column.is-future { background: var(--bulma-scheme-main-bis); }
+
+.column-head { display: flex; align-items: baseline; gap: .3rem; padding: 0 .15rem .3rem; white-space: nowrap; }
+.column-head .weekday { font-weight: 600; }
+.column-head .day-month { color: var(--bulma-text-weak); font-size: 12px; }
+.board-column .cards { flex: 1; min-height: 2.2rem; display: flex; flex-direction: column; gap: .25rem; }

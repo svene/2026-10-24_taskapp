@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.svenehrke</groupId>
+    <artifactId>taskapp</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>outbound-sqlite</artifactId>
+  <packaging>jar</packaging>
+
+  <name>outbound-sqlite</name>
+  <description>Outbound adapter: implements the persistence ports from core with plain SQL over JDBC
+    against one SQLite file (see ADR 0001). No container.</description>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.svenehrke</groupId>
+      <artifactId>core</artifactId>
+    </dependency>
+
+    <!-- The datasource (connection pool) and the JTA transactions behind @Transactional; plain SQL, no ORM -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-agroal</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-narayana-jta</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.quarkiverse.jdbc</groupId>
+      <artifactId>quarkus-jdbc-sqlite</artifactId>
+    </dependency>
+
+    <!-- Versioned schema migrations (src/main/resources/db/migration); flyway-core supports SQLite itself -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-flyway</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+    </dependency>
+  </dependencies>
+</project>

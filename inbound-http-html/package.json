@@ -1,0 +1,16 @@
+{
+  "name": "inbound-http-html",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/main/java/org/svenehrke/taskapp/html/hx-hono.ts --bundle --platform=browser --format=iife --outfile=src/main/resources/META-INF/resources/js/hono/hx-hono.js",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "hono": "4.13.12"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "typescript": "7.0.2"
+  }
+}

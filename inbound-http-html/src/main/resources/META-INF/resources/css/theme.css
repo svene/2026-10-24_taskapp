@@ -1,0 +1,6 @@
+/* Icon of the theme toggle: shows the theme a click switches to. */
+.theme-toggle::after { content: "☾"; }
+[data-theme="dark"] .theme-toggle::after { content: "☀"; }
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme="light"]) .theme-toggle::after { content: "☀"; }
+}

@@ -22,3 +22,10 @@ node_modules/
 
 # custom
 .not-committed/
+
+# inbound-http-html browser templating (typescript-generator and esbuild output)
+/inbound-http-html/src/main/java/org/svenehrke/taskapp/html/generated/
+/inbound-http-html/src/main/resources/META-INF/resources/js/hono/
+
+# %dev database (app-server/.data/taskapp/dev.db)
+/app-server/.data/

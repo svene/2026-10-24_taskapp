@@ -8,12 +8,14 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.flywaydb.core.Flyway;
 
 /**
  * Prepares the SQLite file on startup, before anything else touches it: creates its parent directory (SQLite
- * creates the file, not the directories) and then runs the Flyway migrations. That is why
+ * creates the file, not the directories), backs up an existing file ({@link DatabaseBackup}) and then runs the Flyway
+ * migrations. That is why
  * {@code quarkus.flyway.migrate-at-start} is off: Quarkus would migrate before this observer could run.
  */
 @ApplicationScoped
@@ -26,7 +28,9 @@ class DatabaseStartup {
     Flyway flyway;
 
     void onStart(@Observes StartupEvent event) {
-        createParentDirectory(Path.of(dbPath));
+        var dbFile = Path.of(dbPath);
+        createParentDirectory(dbFile);
+        DatabaseBackup.backUp(dbFile, LocalDateTime.now());
         flyway.migrate();
     }
 

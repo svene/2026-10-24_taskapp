@@ -7,9 +7,11 @@
     "typecheck": "tsc --noEmit -p ."
   },
   "dependencies": {
-    "hono": "4.13.12"
+    "hono": "4.13.12",
+    "sortablejs": "1.15.7"
   },
   "devDependencies": {
+    "@types/sortablejs": "1.15.9",
     "esbuild": "0.28.2",
     "typescript": "7.0.2"
   }

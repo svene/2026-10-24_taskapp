@@ -1,4 +1,5 @@
 import {render} from "./render";
+import "../board/board-drag";
 
 declare const htmx: any;
 

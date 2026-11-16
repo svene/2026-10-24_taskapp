@@ -3,6 +3,7 @@ import type {
 	BoardVM, CardVM, DayColumnVM, EditCardVM, EditOccurrenceVM, FutureVM, MovesVM, NewCardVM,
 } from "../html/generated/vm-types";
 import type {HtmlResult} from "../html/route-types";
+import {SchedulePreview} from "../recurring/schedule";
 
 // Two rows of 7 day Columns, with Future as a sidebar spanning both rows (spec §3.1).
 // Every request from inside the Board answers with the whole Board, morphed into #app: morph keeps focus and
@@ -114,8 +115,12 @@ const closeModal = "this.closest('.modal').remove()";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-// The New Task modal (spec §3.2): One-off (a due date) or Repeats on a calendar (Weekly so far: weekdays, every N
-// weeks, a Start date). Only the chosen kind's fields are shown (CSS :has); the server validates only those.
+const KINDS = [["WEEKLY", "Weekly"], ["MONTHLY_DAY", "Monthly on day"], ["MONTHLY_LAST", "Monthly on the last day"]];
+
+// The New Task modal (spec §3.2): One-off (a due date) or Repeats on a calendar (Weekly: weekdays and every N weeks;
+// Monthly on day N; Monthly on the last day; each from a Start date). Only the chosen kind's fields are shown (CSS
+// :has); the server validates only those. Any change in the form refreshes the preview of the next dates, swapped
+// into its own box rather than morphing the Board.
 const NewCardModal = (f: NewCardVM): HtmlResult => Modal("new-card", "New task", "/cards", "Create", html`
 	${TitleNotes("new-card", f.title, f.notes, f.errors)}
 	<div class="field">
@@ -132,23 +137,36 @@ const NewCardModal = (f: NewCardVM): HtmlResult => Modal("new-card", "New task",
 	<div class="calendar-only">
 		${Field("new-card", "Repeats", "kind", f.errors["kind"], html`
 			<div class="select"><select id="new-card-kind" name="kind">
-				<option value="WEEKLY" ${f.kind === "WEEKLY" ? "selected" : ""}>Weekly</option>
+				${KINDS.map(([value, label]) => html`
+					<option value="${value}" ${f.kind === value ? "selected" : ""}>${label}</option>`)}
 			</select></div>`)}
-		<div class="field">
-			<span class="label">On</span>
-			<div class="control weekdays" id="new-card-weekdays">
-				${WEEKDAYS.map((day, i) => html`
-					<label class="checkbox"><input type="checkbox" name="weekdays" value="${i + 1}" id="new-card-weekday-${i + 1}"
-						${f.weekdays.includes(i + 1) ? "checked" : ""}> ${day}</label>`)}
+		<div class="weekly-only">
+			<div class="field">
+				<span class="label">On</span>
+				<div class="control weekdays" id="new-card-weekdays">
+					${WEEKDAYS.map((day, i) => html`
+						<label class="checkbox"><input type="checkbox" name="weekdays" value="${i + 1}" id="new-card-weekday-${i + 1}"
+							${f.weekdays.includes(i + 1) ? "checked" : ""}> ${day}</label>`)}
+				</div>
+				${f.errors["weekdays"] ? html`<p class="help is-danger">${f.errors["weekdays"]}</p>` : ""}
 			</div>
-			${f.errors["weekdays"] ? html`<p class="help is-danger">${f.errors["weekdays"]}</p>` : ""}
+			${Field("new-card", "Every N weeks", "everyWeeks", f.errors["everyWeeks"], html`
+				<input class="input every-weeks ${f.errors["everyWeeks"] ? "is-danger" : ""}" id="new-card-everyWeeks"
+					name="everyWeeks" type="number" min="1" value="${f.everyWeeks}">`)}
 		</div>
-		${Field("new-card", "Every N weeks", "everyWeeks", f.errors["everyWeeks"], html`
-			<input class="input every-weeks ${f.errors["everyWeeks"] ? "is-danger" : ""}" id="new-card-everyWeeks"
-				name="everyWeeks" type="number" min="1" value="${f.everyWeeks}">`)}
+		<div class="monthly-day-only">
+			${Field("new-card", "Day of the month", "monthDay", f.errors["monthDay"], html`
+				<input class="input month-day ${f.errors["monthDay"] ? "is-danger" : ""}" id="new-card-monthDay"
+					name="monthDay" type="number" min="1" max="28" value="${f.monthDay}">`)}
+		</div>
 		${Field("new-card", "Starts", "startsOn", f.errors["startsOn"], html`
 			<input class="input ${f.errors["startsOn"] ? "is-danger" : ""}" id="new-card-startsOn" name="startsOn"
 				type="date" value="${f.startsOn}">`)}
+		<div class="field">
+			<span class="label">Next dates</span>
+			<div id="new-card-preview" hx-get="/schedules/preview" hx-include="closest form"
+				hx-trigger="change from:closest form" hx-target="this" hx-swap="innerHTML">${SchedulePreview(f.preview)}</div>
+		</div>
 	</div>
 `);
 

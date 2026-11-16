@@ -7,4 +7,6 @@ package org.svenehrke.taskapp.html;
  */
 public enum UiRoute {
     BoardPage,
+    /** The New Task modal's next dates of the chosen calendar Schedule, swapped into its preview box. */
+    SchedulePreview,
 }

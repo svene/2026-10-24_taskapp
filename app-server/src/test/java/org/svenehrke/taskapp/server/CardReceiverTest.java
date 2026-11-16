@@ -82,8 +82,13 @@ class CardReceiverTest {
               "kind": "WEEKLY",
               "weekdays": [3],
               "everyWeeks": "1",
+              "monthDay": "28",
               "startsOn": "2026-10-25",
-              "errors": {}
+              "errors": {},
+              "preview": {
+                "dates": ["Wed 28 Oct 2026", "Wed 4 Nov 2026", "Wed 11 Nov 2026", "Wed 18 Nov 2026", "Wed 25 Nov 2026"],
+                "message": null
+              }
             }
             """);
     }
@@ -120,8 +125,10 @@ class CardReceiverTest {
               "kind": "",
               "weekdays": [],
               "everyWeeks": "",
+              "monthDay": "",
               "startsOn": "",
-              "errors": {"title": "Title must not be blank."}
+              "errors": {"title": "Title must not be blank."},
+              "preview": {"dates": [], "message": "Choose how the task repeats. Start date is required."}
             }
             """);
         assertThatJson(json).inPath("$.vm.days[*].cards[*]").isArray().isEmpty();

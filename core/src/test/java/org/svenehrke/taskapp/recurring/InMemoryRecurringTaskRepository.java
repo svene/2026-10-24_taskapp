@@ -18,6 +18,12 @@ public class InMemoryRecurringTaskRepository implements RecurringTaskRepositoryS
         return List.copyOf(occurrences);
     }
 
+    @Override
+    public void update(long id, String title, String notes, Schedule schedule, LocalDate producedThrough) {
+        rows.replaceAll(t -> t.id() != id ? t : new RecurringTask(t.id(), title, notes, schedule, producedThrough, t.stoppedOn()));
+    }
+
+    @Override
     public void stop(long id, LocalDate stoppedOn) {
         rows.replaceAll(t -> t.id() != id ? t
             : new RecurringTask(t.id(), t.title(), t.notes(), t.schedule(), t.producedThrough(), stoppedOn));

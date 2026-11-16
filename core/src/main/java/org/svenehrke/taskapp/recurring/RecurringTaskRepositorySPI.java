@@ -31,4 +31,9 @@ public interface RecurringTaskRepositorySPI {
     Optional<LocalDate> latestOriginalDueOn(long recurringTaskId);
 
     void setProducedThrough(long id, LocalDate producedThrough);
+
+    /** Replaces title, notes and Schedule (all Schedule columns), and sets {@code producedThrough} (null for After-done). */
+    void update(long id, String title, String notes, Schedule schedule, LocalDate producedThrough);
+
+    void stop(long id, LocalDate stoppedOn);
 }

@@ -27,14 +27,26 @@ public class OccurrenceProducer {
     public void catchUp(LocalDate today) {
         var beyondSpan = Span.futureFrom(today);
         for (var task : tasks.producingOnCalendar()) {
-            if (!(task.schedule() instanceof CalendarSchedule calendar)) continue;
-            var last = calendar.nextOnOrAfter(beyondSpan);
-            var from = task.producedThrough().plusDays(1);
-            if (from.isAfter(last)) continue;
-            calendar.datesFrom(from).takeWhile(date -> !date.isAfter(last))
-                .forEach(date -> tasks.insertOccurrence(task.id(), date));
-            tasks.setProducedThrough(task.id(), last);
+            if (task.schedule() instanceof CalendarSchedule calendar) produce(task.id(), calendar, task.producedThrough(), beyondSpan);
         }
+    }
+
+    /**
+     * After a calendar Schedule was edited (spec §2.4): produces like {@link #catchUp} from {@code today} on, never
+     * before it. An Occurrence that already has one of the produced original due dates is adopted, not duplicated
+     * (the insert is idempotent); one whose original due date the new Schedule no longer produces stays, and is
+     * Stale ({@link RecurringTask#stale}).
+     */
+    public void reproduce(long recurringTaskId, CalendarSchedule schedule, LocalDate today) {
+        produce(recurringTaskId, schedule, today.minusDays(1), Span.futureFrom(today));
+    }
+
+    private void produce(long id, CalendarSchedule calendar, LocalDate producedThrough, LocalDate beyondSpan) {
+        var last = calendar.nextOnOrAfter(beyondSpan);
+        var from = producedThrough.plusDays(1);
+        if (from.isAfter(last)) return;
+        calendar.datesFrom(from).takeWhile(date -> !date.isAfter(last)).forEach(date -> tasks.insertOccurrence(id, date));
+        tasks.setProducedThrough(id, last);
     }
 
     /**

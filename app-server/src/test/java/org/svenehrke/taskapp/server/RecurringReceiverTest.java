@@ -296,9 +296,11 @@ class RecurringReceiverTest {
         assertThatJson(json).inPath("vm.editOccurrence").isEqualTo("""
             {
               "id": %d,
+              "recurringTaskId": "${json-unit.any-number}",
               "title": "Water the plants",
               "notes": "from the rain barrel",
               "schedule": "Every week on Mon, Thu, from 25 Oct 2026",
+              "stoppedLabel": null,
               "dueOn": "2026-10-26",
               "minDueOn": "2026-10-25",
               "done": false,

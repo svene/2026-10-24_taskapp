@@ -1,6 +1,6 @@
 import {html} from "hono/html";
 import type {
-	BoardVM, CardVM, DayColumnVM, EditCardVM, EditOccurrenceVM, FutureVM, MovesVM, NewCardVM,
+	BoardVM, CardVM, DayColumnVM, EditCardVM, EditOccurrenceVM, EditRecurringVM, FutureVM, MovesVM, NewCardVM,
 } from "../html/generated/vm-types";
 import type {HtmlResult} from "../html/route-types";
 import {SchedulePreview} from "../recurring/schedule";
@@ -19,6 +19,7 @@ export const BoardPage = (vm: BoardVM): HtmlResult => html`
 		${vm.newCard ? NewCardModal(vm.newCard) : ""}
 		${vm.editCard ? EditCardModal(vm.editCard) : ""}
 		${vm.editOccurrence ? EditOccurrenceModal(vm.editOccurrence) : ""}
+		${vm.editRecurring ? EditRecurringModal(vm.editRecurring) : ""}
 	</div>
 `;
 
@@ -73,8 +74,8 @@ const FutureColumn = (f: FutureVM): HtmlResult => html`
 `;
 
 // Compact: the Tick checkbox, the title and markers; notes are shown in the modal. Cards in Future and in the
-// Overdue box also show their date, Overdue ones with ⚠; an Occurrence shows ↻; a moved Card shows ⇢ and its
-// original due date. Ticking posts to tick or untick, the card buttons (on hover or focus) to move or open the Edit
+// Overdue box also show their date, Overdue ones with ⚠; an Occurrence shows ↻, a Stale one also the Stale tag; a
+// moved Card shows ⇢ and its original due date. Ticking posts to tick or untick, the card buttons (on hover or focus) to move or open the Edit
 // modal; each is answered with the Board.
 const Card = (c: CardVM): HtmlResult => html`
 	<div class="tcard ${c.done ? "is-done" : ""} ${c.overdue ? "is-overdue" : ""}" id="${c.id}">
@@ -85,6 +86,8 @@ const Card = (c: CardVM): HtmlResult => html`
 		${c.dateLabel ? html`<span class="tcard-date">${c.overdue ? "⚠ " : ""}${c.dateLabel}</span>` : ""}
 		<span class="tcard-title">${c.title}</span>
 		${c.recurring ? html`<span class="tcard-recurring" title="Recurring task" aria-label="Recurring task">↻</span>` : ""}
+		${c.stale ? html`<span class="tag is-warning is-light tcard-stale" id="stale-${c.taskId}"
+			title="Its recurring task no longer produces this date">Stale</span>` : ""}
 		${c.originalLabel ? html`<span class="tcard-original" title="Original due date ${c.originalLabel}">⇢ ${c.originalLabel}</span>` : ""}
 		${CardButtons(c)}
 	</div>
@@ -138,54 +141,65 @@ const NewCardModal = (f: NewCardVM): HtmlResult => Modal("new-card", "New task",
 		${DueField("new-card", f.dueOn, undefined, f.errors["dueOn"])}
 	</div>
 	<div class="recurring-only">
-	<div class="calendar-only">
-		${Field("new-card", "Repeats", "kind", f.errors["kind"], html`
-			<div class="select"><select id="new-card-kind" name="kind">
-				${KINDS.map(([value, label]) => html`
-					<option value="${value}" ${f.kind === value ? "selected" : ""}>${label}</option>`)}
-			</select></div>`)}
-		<div class="weekly-only">
-			<div class="field">
-				<span class="label">On</span>
-				<div class="control weekdays" id="new-card-weekdays">
-					${WEEKDAYS.map((day, i) => html`
-						<label class="checkbox"><input type="checkbox" name="weekdays" value="${i + 1}" id="new-card-weekday-${i + 1}"
-							${f.weekdays.includes(i + 1) ? "checked" : ""}> ${day}</label>`)}
-				</div>
-				${f.errors["weekdays"] ? html`<p class="help is-danger">${f.errors["weekdays"]}</p>` : ""}
-			</div>
-			${Field("new-card", "Every N weeks", "everyWeeks", f.errors["everyWeeks"], html`
-				<input class="input every-weeks ${f.errors["everyWeeks"] ? "is-danger" : ""}" id="new-card-everyWeeks"
-					name="everyWeeks" type="number" min="1" value="${f.everyWeeks}">`)}
-		</div>
-		<div class="monthly-day-only">
-			${Field("new-card", "Day of the month", "monthDay", f.errors["monthDay"], html`
-				<input class="input month-day ${f.errors["monthDay"] ? "is-danger" : ""}" id="new-card-monthDay"
-					name="monthDay" type="number" min="1" max="28" value="${f.monthDay}">`)}
-		</div>
-	</div>
-	<div class="after-done-only">
-		${Field("new-card", "Every", "afterAmount", f.errors["afterAmount"] ?? f.errors["afterUnit"], html`
-			<div class="field has-addons">
-				<div class="control"><input class="input after-amount ${f.errors["afterAmount"] ? "is-danger" : ""}"
-					id="new-card-afterAmount" name="afterAmount" type="number" min="1" value="${f.afterAmount}"></div>
-				<div class="control"><div class="select"><select id="new-card-afterUnit" name="afterUnit">
-					${[["DAYS", "days"], ["WEEKS", "weeks"]].map(([value, label]) => html`
-						<option value="${value}" ${f.afterUnit === value ? "selected" : ""}>${label}</option>`)}
-				</select></div></div>
-			</div>
-			<p class="help">after each time it is done</p>`)}
-	</div>
-		${Field("new-card", "Starts", "startsOn", f.errors["startsOn"], html`
-			<input class="input ${f.errors["startsOn"] ? "is-danger" : ""}" id="new-card-startsOn" name="startsOn"
-				type="date" value="${f.startsOn}">`)}
-		<div class="field">
-			<span class="label">Next dates</span>
-			<div id="new-card-preview" hx-get="/schedules/preview" hx-include="closest form"
-				hx-trigger="change from:#new-card" hx-target="this" hx-swap="innerHTML">${SchedulePreview(f.preview)}</div>
-		</div>
+		<div class="calendar-only">${CalendarFields("new-card", f)}</div>
+		<div class="after-done-only">${AfterDoneFields("new-card", f)}</div>
+		${StartsAndPreview("new-card", f)}
 	</div>
 `);
+
+// The Schedule fields as the New Task and the Recurring Task modal share them.
+type ScheduleForm = Pick<NewCardVM, "kind" | "weekdays" | "everyWeeks" | "monthDay" | "startsOn" | "afterAmount"
+	| "afterUnit" | "errors" | "preview">;
+
+const CalendarFields = (form: string, f: ScheduleForm): HtmlResult => html`
+	${Field(form, "Repeats", "kind", f.errors["kind"], html`
+		<div class="select"><select id="${form}-kind" name="kind">
+			${KINDS.map(([value, label]) => html`
+				<option value="${value}" ${f.kind === value ? "selected" : ""}>${label}</option>`)}
+		</select></div>`)}
+	<div class="weekly-only">
+		<div class="field">
+			<span class="label">On</span>
+			<div class="control weekdays" id="${form}-weekdays">
+				${WEEKDAYS.map((day, i) => html`
+					<label class="checkbox"><input type="checkbox" name="weekdays" value="${i + 1}" id="${form}-weekday-${i + 1}"
+						${f.weekdays.includes(i + 1) ? "checked" : ""}> ${day}</label>`)}
+			</div>
+			${f.errors["weekdays"] ? html`<p class="help is-danger">${f.errors["weekdays"]}</p>` : ""}
+		</div>
+		${Field(form, "Every N weeks", "everyWeeks", f.errors["everyWeeks"], html`
+			<input class="input every-weeks ${f.errors["everyWeeks"] ? "is-danger" : ""}" id="${form}-everyWeeks"
+				name="everyWeeks" type="number" min="1" value="${f.everyWeeks}">`)}
+	</div>
+	<div class="monthly-day-only">
+		${Field(form, "Day of the month", "monthDay", f.errors["monthDay"], html`
+			<input class="input month-day ${f.errors["monthDay"] ? "is-danger" : ""}" id="${form}-monthDay"
+				name="monthDay" type="number" min="1" max="28" value="${f.monthDay}">`)}
+	</div>
+`;
+
+const AfterDoneFields = (form: string, f: ScheduleForm): HtmlResult =>
+	Field(form, "Every", "afterAmount", f.errors["afterAmount"] ?? f.errors["afterUnit"], html`
+		<div class="field has-addons">
+			<div class="control"><input class="input after-amount ${f.errors["afterAmount"] ? "is-danger" : ""}"
+				id="${form}-afterAmount" name="afterAmount" type="number" min="1" value="${f.afterAmount}"></div>
+			<div class="control"><div class="select"><select id="${form}-afterUnit" name="afterUnit">
+				${[["DAYS", "days"], ["WEEKS", "weeks"]].map(([value, label]) => html`
+					<option value="${value}" ${f.afterUnit === value ? "selected" : ""}>${label}</option>`)}
+			</select></div></div>
+		</div>
+		<p class="help">after each time it is done</p>`);
+
+const StartsAndPreview = (form: string, f: ScheduleForm): HtmlResult => html`
+	${Field(form, "Starts", "startsOn", f.errors["startsOn"], html`
+		<input class="input ${f.errors["startsOn"] ? "is-danger" : ""}" id="${form}-startsOn" name="startsOn"
+			type="date" value="${f.startsOn}">`)}
+	<div class="field">
+		<span class="label">Next dates</span>
+		<div id="${form}-preview" hx-get="/schedules/preview" hx-include="closest form"
+			hx-trigger="change from:#${form}" hx-target="this" hx-swap="innerHTML">${SchedulePreview(f.preview)}</div>
+	</div>
+`;
 
 // The Edit modal of a One-off Task (spec §3.2). A changed due date is a Move to the bottom of that day; the date
 // picker starts at today (or the Overdue Card's own day, so it can keep it).
@@ -194,19 +208,35 @@ const EditCardModal = (f: EditCardVM): HtmlResult => Modal("edit-card", "Edit ta
 	${DueField("edit-card", f.dueOn, f.minDueOn, f.errors["dueOn"])}
 `);
 
-// The Edit modal of an Occurrence (spec §3.2): its Recurring Task's title, notes and Schedule read-only; the due
-// date (a Move, as above) and Done editable.
+// The Edit modal of an Occurrence (spec §3.2): its Recurring Task's title, notes and Schedule read-only, with "Edit
+// recurring task" (or, once Stopped, since when); the due date (a Move, as above) and Done editable.
 const EditOccurrenceModal = (f: EditOccurrenceVM): HtmlResult =>
 	Modal("edit-occurrence", "Edit occurrence", `/cards/${f.id}/occurrence`, "Save", html`
 		<p class="title is-5" id="edit-occurrence-title">${f.title} <span title="Recurring task">↻</span></p>
 		${f.notes ? html`<p class="occurrence-notes" id="edit-occurrence-notes">${f.notes}</p>` : ""}
 		<p class="help" id="edit-occurrence-schedule">${f.schedule}</p>
+		${f.stoppedLabel
+			? html`<p class="help" id="edit-occurrence-stopped">${f.stoppedLabel}</p>`
+			: html`<div class="field"><button type="button" class="button is-small" id="edit-occurrence-recurring"
+				hx-get="/recurring-tasks/${f.recurringTaskId}/edit">Edit recurring task</button></div>`}
 		${DueField("edit-occurrence", f.dueOn, f.minDueOn, f.errors["dueOn"])}
 		<div class="field">
 			<label class="checkbox"><input type="checkbox" name="done" id="edit-occurrence-done" ${f.done ? "checked" : ""}>
 				Done</label>
 		</div>
 	`);
+
+// The Recurring Task modal (spec §2.4): title, notes and Schedule, within its family (a calendar task changes its
+// kind, an After-done task its N and unit); the new Schedule applies from today. Stop ends it for good: it produces no
+// more Occurrences and its open future ones turn Stale.
+const EditRecurringModal = (f: EditRecurringVM): HtmlResult =>
+	Modal("edit-recurring", "Edit recurring task", `/recurring-tasks/${f.id}`, "Save", html`
+		${TitleNotes("edit-recurring", f.title, f.notes, f.errors)}
+		<input type="hidden" name="repeats" value="${f.repeats}">
+		${f.repeats === "afterDone" ? AfterDoneFields("edit-recurring", f) : CalendarFields("edit-recurring", f)}
+		${StartsAndPreview("edit-recurring", f)}
+	`, html`<button type="button" class="button is-danger is-outlined" id="edit-recurring-stop"
+		hx-post="/recurring-tasks/${f.id}/stop">Stop</button>`);
 
 const TitleNotes = (form: string, title: string, notes: string, errors: Record<string, string>): HtmlResult => html`
 	${Field(form, "Title", "title", errors["title"], html`
@@ -222,7 +252,8 @@ const DueField = (form: string, dueOn: string, minDueOn: string | undefined, err
 			value="${dueOn}" ${minDueOn ? html`min="${minDueOn}"` : ""}>`);
 
 // A form in a modal. It closes client-side: background, ×, Cancel or Escape.
-const Modal = (id: string, heading: string, action: string, submit: string, body: HtmlResult): HtmlResult => html`
+const Modal = (id: string, heading: string, action: string, submit: string, body: HtmlResult,
+	extraButton: HtmlResult | string = ""): HtmlResult => html`
 	<div class="modal is-active" id="${id}" onkeydown="if (event.key === 'Escape') ${closeModal}">
 		<div class="modal-background" onclick="${closeModal}"></div>
 		<form class="modal-card" hx-post="${action}">
@@ -234,6 +265,7 @@ const Modal = (id: string, heading: string, action: string, submit: string, body
 			<footer class="modal-card-foot buttons">
 				<button type="submit" class="button is-link">${submit}</button>
 				<button type="button" class="button" onclick="${closeModal}">Cancel</button>
+				${extraButton}
 			</footer>
 		</form>
 	</div>

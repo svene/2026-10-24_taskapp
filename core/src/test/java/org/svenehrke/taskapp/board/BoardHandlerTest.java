@@ -9,6 +9,8 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import org.junit.jupiter.api.Test;
 import org.svenehrke.taskapp.board.Board.BoardCard;
+import java.util.List;
+import org.svenehrke.taskapp.card.Card;
 import org.svenehrke.taskapp.card.InMemoryCardRepository;
 import org.svenehrke.taskapp.card.MutableTestClock;
 import org.svenehrke.taskapp.recurring.InMemoryRecurringTaskRepository;
@@ -19,11 +21,12 @@ class BoardHandlerTest {
     private static final ZoneId ZONE = ZoneId.of("Europe/Zurich");
     private static final LocalDate SUNDAY = LocalDate.of(2026, 10, 25);
 
-    private static final OccurrenceProducer NO_RECURRING = new OccurrenceProducer(new InMemoryRecurringTaskRepository());
+    private static final InMemoryRecurringTaskRepository NO_RECURRING_TASKS = new InMemoryRecurringTaskRepository();
+    private static final OccurrenceProducer NO_RECURRING = new OccurrenceProducer(NO_RECURRING_TASKS);
 
     private final InMemoryCardRepository cards = new InMemoryCardRepository();
     private final BoardHandler handler =
-        new BoardHandler(Clock.fixed(SUNDAY.atTime(23, 30).atZone(ZONE).toInstant(), ZONE), cards, NO_RECURRING);
+        new BoardHandler(Clock.fixed(SUNDAY.atTime(23, 30).atZone(ZONE).toInstant(), ZONE), cards, NO_RECURRING, NO_RECURRING_TASKS);
 
     @Test
     void board_spans_fourteen_days_from_today_then_future() {
@@ -112,7 +115,7 @@ class BoardHandlerTest {
     @Test
     void an_open_card_becomes_overdue_at_midnight() {
         var clock = new MutableTestClock(SUNDAY);
-        var board = new BoardHandler(clock, cards, NO_RECURRING);
+        var board = new BoardHandler(clock, cards, NO_RECURRING, NO_RECURRING_TASKS);
         cards.insertOneOff("Water the plants", null, SUNDAY, 0);
 
         clock.set(SUNDAY, LocalTime.of(23, 59, 59));
@@ -128,7 +131,7 @@ class BoardHandlerTest {
     @Test
     void a_done_overdue_card_stays_in_the_box_until_the_end_of_the_day_it_was_ticked_off() {
         var clock = new MutableTestClock(SUNDAY);
-        var board = new BoardHandler(clock, cards, NO_RECURRING);
+        var board = new BoardHandler(clock, cards, NO_RECURRING, NO_RECURRING_TASKS);
         cards.insertOneOff("due 20 Oct", null, LocalDate.of(2026, 10, 20), 0);
         cards.setDoneOn(1, SUNDAY);
 
@@ -144,7 +147,7 @@ class BoardHandlerTest {
     @Test
     void a_card_ticked_off_early_stays_done_on_its_day_until_that_day_is_past() {
         var clock = new MutableTestClock(SUNDAY);
-        var board = new BoardHandler(clock, cards, NO_RECURRING);
+        var board = new BoardHandler(clock, cards, NO_RECURRING, NO_RECURRING_TASKS);
         var tuesday = SUNDAY.plusDays(2);
         cards.insertOneOff("Book flights", null, tuesday, 0);
         cards.setDoneOn(1, SUNDAY);
@@ -166,6 +169,20 @@ class BoardHandlerTest {
         cards.insertOneOff("far away", null, LocalDate.of(2026, 12, 1), 0);
         cards.setDoneOn(1, SUNDAY);
 
-        assertThat(new BoardHandler(clock, cards, NO_RECURRING).board().future().nearest()).isEmpty();
+        assertThat(new BoardHandler(clock, cards, NO_RECURRING, NO_RECURRING_TASKS).board().future().nearest()).isEmpty();
+    }
+
+    /** Stale Cards never take one of Future's five nearest places; they wait behind "+N more", in Board order. */
+    @Test
+    void future_nearest_skips_stale_cards() {
+        var from = Board.futureFrom(SUNDAY);
+        var future = java.util.stream.IntStream.range(0, 7)
+            .mapToObj(i -> new Card(i + 1, 1L, "t" + (i + 1), null, from.plusDays(i), from.plusDays(i), 0, null)).toList();
+
+        var board = Board.of(SUNDAY, List.of(), List.of(), future, card -> card.id() == 2 || card.id() == 3);
+
+        assertThat(board.future().nearest()).extracting(BoardCard::title).containsExactly("t1", "t4", "t5", "t6", "t7");
+        assertThat(board.future().more()).extracting(BoardCard::title, BoardCard::stale)
+            .containsExactly(tuple("t2", true), tuple("t3", true));
     }
 }

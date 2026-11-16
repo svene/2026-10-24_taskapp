@@ -45,9 +45,9 @@ class CardReceiverTest {
               "overdue": [],
               "cards": [
                 {"id": "${json-unit.any-string}", "taskId": "${json-unit.any-number}", "title": "Water the plants", "dateLabel": null, "done": false, "overdue": false,
-                 "originalLabel": null, "moves": {"toToday": null, "plusDay": "2026-10-27", "plusWeek": "2026-11-02"}, "recurring": false},
+                 "originalLabel": null, "moves": {"toToday": null, "plusDay": "2026-10-27", "plusWeek": "2026-11-02"}, "recurring": false, "stale": false},
                 {"id": "${json-unit.any-string}", "taskId": "${json-unit.any-number}", "title": "Buy stamps",       "dateLabel": null, "done": false, "overdue": false,
-                 "originalLabel": null, "moves": {"toToday": null, "plusDay": "2026-10-27", "plusWeek": "2026-11-02"}, "recurring": false}
+                 "originalLabel": null, "moves": {"toToday": null, "plusDay": "2026-10-27", "plusWeek": "2026-11-02"}, "recurring": false, "stale": false}
               ],
               "quickAddError": null
             }

@@ -48,7 +48,8 @@ class BoardReceiverTest {
                   {"id": "col-2026-11-07", "date": "2026-11-07", "weekday": "Sat", "dayMonth": "7 Nov",  "today": false, "weekend": true}
                 ],
                 "future": {"from": "2026-11-08", "fromLabel": "from 8 Nov"},
-                "newCard": null
+                "newCard": null,
+                "notice": null
               }
             }
             """);

@@ -36,7 +36,7 @@ as PRAGMAs on every connection it opens. The Agroal pool has one connection (SQL
 
 ### Card-creating Receivers live in `board`
 
-`CardReceiver` (create, quick-add, open the New Task modal) is in package `board`, not `card`. Every response is
+`CardReceiver` (create, quick-add, open the New Task modal, tick, untick) is in package `board`, not `card`. Every response is
 the whole Board, so it calls `BoardHandler`, and `card` must not depend on `board` (`board` → `card` already; the
 cycle check in `ArchitectureTest` would fail).
 
@@ -51,3 +51,10 @@ Requests from inside the Board answer with the whole Board, swapped into `#app` 
 (`hx-target:inherited` / `hx-swap:inherited` on `#board`). Morph keeps focus and scroll, but leaves the value of
 the focused input alone, so a quick-add form resets itself after a successful create (`hx-on::after:swap`).
 The New Task modal is Board state (`BoardVM.newCard`) and closes client-side by removing itself.
+
+### `RejectedException` lives in package `shared`
+
+Every Handler throws `RejectedException(reason)` (spec §4.3), including the ones in `recurring`, which must not
+depend on `card`. So it sits in `org.svenehrke.taskapp.shared`, which depends on nothing. Its JAX-RS
+`RejectedExceptionMapper` is in `board` of `inbound-http-html`: it answers 409 with the Board, re-read after the
+rollback, and the reason as `BoardVM.notice`.

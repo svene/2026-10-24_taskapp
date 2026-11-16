@@ -6,6 +6,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.OptionalInt;
 import org.svenehrke.taskapp.sqlite.Db;
 
@@ -18,6 +19,16 @@ class CardService implements CardRepositorySPI {
 
     @Inject
     Db db;
+
+    @Override
+    public Optional<Card> find(long id) {
+        return db.queryOne("SELECT " + COLUMNS + " FROM card WHERE id = ?", CardService::card, id);
+    }
+
+    @Override
+    public void setDoneOn(long id, LocalDate doneOn) {
+        db.update("UPDATE card SET done_on = ? WHERE id = ?", doneOn, id);
+    }
 
     @Override
     public OptionalInt maxPosition(LocalDate dueOn) {
@@ -38,6 +49,12 @@ class CardService implements CardRepositorySPI {
     public List<Card> dueBetween(LocalDate from, LocalDate through) {
         return db.query("SELECT " + COLUMNS + " FROM card WHERE due_on BETWEEN ? AND ? ORDER BY due_on, position, id",
             CardService::card, from, through);
+    }
+
+    @Override
+    public List<Card> overdueBox(LocalDate today) {
+        return db.query("SELECT " + COLUMNS + " FROM card WHERE due_on < ? AND (done_on IS NULL OR done_on >= ?)"
+            + " ORDER BY due_on, position, id", CardService::card, today, today);
     }
 
     @Override

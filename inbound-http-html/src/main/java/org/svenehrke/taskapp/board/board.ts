@@ -7,12 +7,21 @@ import type {HtmlResult} from "../html/route-types";
 // syncs input values (except the focused one: a quick-add form resets itself after a create).
 export const BoardPage = (vm: BoardVM): HtmlResult => html`
 	<div class="board" id="board" hx-target:inherited="#app" hx-swap:inherited="innerMorph">
+		${vm.notice ? Notice(vm.notice) : ""}
 		<div class="weeks">
 			<div class="week">${vm.days.slice(0, 7).map(DayColumn)}</div>
 			<div class="week">${vm.days.slice(7).map(DayColumn)}</div>
 		</div>
 		${FutureColumn(vm.future)}
 		${vm.newCard ? NewCardModal(vm.newCard) : ""}
+	</div>
+`;
+
+// A rejected command (spec §3.2): a short notice above the Board, closed client-side; the next response drops it.
+const Notice = (notice: string): HtmlResult => html`
+	<div class="notification is-warning is-light board-notice" id="notice" role="alert">
+		<button type="button" class="delete" aria-label="close" onclick="this.parentElement.remove()"></button>
+		${notice}
 	</div>
 `;
 
@@ -28,6 +37,7 @@ const DayColumn = (d: DayColumnVM): HtmlResult => html`
 			<span class="day-month">${d.dayMonth}</span>
 			${AddButton(d.date)}
 		</header>
+		${d.overdue.length > 0 ? html`<div class="overdue-box" id="overdue" aria-label="Overdue">${d.overdue.map(Card)}</div>` : ""}
 		<div class="cards">${d.cards.map(Card)}</div>
 		<form class="quick" id="quick-${d.date}" hx-post="/cards/quick-add"
 			hx-on::after:swap="if (ctx.response?.status === 200) this.reset()">
@@ -57,11 +67,15 @@ const FutureColumn = (f: FutureVM): HtmlResult => html`
 	</section>
 `;
 
-// Compact: the title only; notes are shown in the modal. Future Cards also show their date.
+// Compact: the Tick checkbox, the title and markers; notes are shown in the modal. Cards in Future and in the
+// Overdue box also show their date, Overdue ones with ⚠. Ticking posts to tick or untick, answered with the Board.
 const Card = (c: CardVM): HtmlResult => html`
-	<div class="tcard" id="${c.id}">
+	<div class="tcard ${c.done ? "is-done" : ""} ${c.overdue ? "is-overdue" : ""}" id="${c.id}">
 		<input type="hidden" name="taskId" value="${c.taskId}">
-		${c.dateLabel ? html`<span class="tcard-date">${c.dateLabel}</span>` : ""}
+		<input type="checkbox" class="tcard-tick" id="tick-${c.taskId}" ${c.done ? "checked" : ""}
+			aria-label="${c.done ? "Untick" : "Tick off"} ${c.title}"
+			hx-post="/cards/${c.taskId}/${c.done ? "untick" : "tick"}" hx-trigger="change">
+		${c.dateLabel ? html`<span class="tcard-date">${c.overdue ? "⚠ " : ""}${c.dateLabel}</span>` : ""}
 		<span class="tcard-title">${c.title}</span>
 	</div>
 `;

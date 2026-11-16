@@ -1,9 +1,8 @@
 package org.svenehrke.taskapp.card;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.tuple;
-
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
 import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
@@ -91,5 +90,121 @@ class CardHandlerTest {
         assertThatThrownBy(() -> handler.tick(42)).isInstanceOf(RejectedException.class)
             .hasMessage("That task does not exist (any more).");
         assertThatThrownBy(() -> handler.untick(42)).isInstanceOf(RejectedException.class);
+    }
+
+    @Test
+    void move_to_another_day_goes_to_the_bottom_and_keeps_the_original_due_date() {
+        cards.insertOneOff("Water the plants", null, MON, 0);
+        cards.insertOneOff("Buy stamps", null, MON.plusWeeks(1), 0);
+
+        handler.move(1, MON.plusWeeks(1).toString(), null);
+
+        assertThat(cards.all()).extracting(Card::title, Card::dueOn, Card::originalDueOn, Card::position).containsExactly(
+            tuple("Buy stamps", MON.plusWeeks(1), MON.plusWeeks(1), 0),
+            tuple("Water the plants", MON.plusWeeks(1), MON, 1));
+    }
+
+    @Test
+    void move_before_a_card_renumbers_the_target_day_densely_and_leaves_the_source_day_alone() {
+        cards.insertOneOff("a", null, TUE, 3);
+        cards.insertOneOff("b", null, TUE, 7);
+        cards.insertOneOff("c", null, TUE, 9);
+        cards.insertOneOff("moved", null, MON, 1);
+        cards.insertOneOff("stays", null, MON, 5);
+
+        handler.move(4, TUE.toString(), 2L);
+
+        assertThat(cards.all()).extracting(Card::title, Card::dueOn, Card::position).containsExactly(
+            tuple("stays", MON, 5),
+            tuple("a", TUE, 0),
+            tuple("moved", TUE, 1),
+            tuple("b", TUE, 2),
+            tuple("c", TUE, 3));
+    }
+
+    @Test
+    void move_within_a_day_reorders_it() {
+        cards.insertOneOff("a", null, MON, 0);
+        cards.insertOneOff("b", null, MON, 1);
+        cards.insertOneOff("c", null, MON, 2);
+
+        handler.move(3, MON.toString(), 1L);
+
+        assertThat(cards.all()).extracting(Card::title, Card::position)
+            .containsExactly(tuple("c", 0), tuple("a", 1), tuple("b", 2));
+    }
+
+    @Test
+    void move_before_a_card_of_another_day_goes_to_the_bottom() {
+        cards.insertOneOff("a", null, TUE, 0);
+        cards.insertOneOff("elsewhere", null, MON, 0);
+        cards.insertOneOff("moved", null, MON, 1);
+
+        handler.move(3, TUE.toString(), 2L);
+
+        assertThat(cards.all()).extracting(Card::title, Card::dueOn, Card::position).containsExactly(
+            tuple("elsewhere", MON, 0),
+            tuple("a", TUE, 0),
+            tuple("moved", TUE, 1));
+    }
+
+    @Test
+    void open_cards_can_be_moved_above_done_ones_which_keep_their_order() {
+        cards.insertOneOff("done", null, TUE, 0);
+        cards.setDoneOn(1, MON);
+        cards.insertOneOff("moved", null, MON, 0);
+
+        handler.move(2, TUE.toString(), 1L);
+
+        assertThat(cards.all()).extracting(Card::title, Card::position, Card::done)
+            .containsExactly(tuple("moved", 0, false), tuple("done", 1, true));
+    }
+
+    @Test
+    void move_to_future_means_the_bottom_of_the_day_after_the_span() {
+        var afterSpan = MON.plusDays(14);
+        cards.insertOneOff("already there", null, afterSpan, 0);
+        cards.insertOneOff("moved", null, MON, 0);
+
+        handler.move(2, "future", null);
+
+        assertThat(cards.all()).extracting(Card::title, Card::dueOn, Card::position)
+            .containsExactly(tuple("already there", afterSpan, 0), tuple("moved", afterSpan, 1));
+    }
+
+    @Test
+    void moving_back_to_the_original_day_makes_due_and_original_due_date_equal_again() {
+        cards.insertOneOff("Water the plants", null, MON, 0);
+        handler.move(1, TUE.toString(), null);
+
+        handler.move(1, MON.toString(), null);
+
+        assertThat(cards.all()).extracting(Card::dueOn, Card::originalDueOn).containsExactly(tuple(MON, MON));
+    }
+
+    @Test
+    void an_overdue_card_can_be_moved_to_today() {
+        cards.insertOneOff("Pay the bill", null, MON.minusDays(6), 0);
+
+        handler.move(1, MON.toString(), null);
+
+        assertThat(cards.all()).extracting(Card::dueOn, Card::originalDueOn).containsExactly(tuple(MON, MON.minusDays(6)));
+    }
+
+    @Test
+    void move_rejects_a_past_day_a_done_card_an_unknown_id_and_a_target_that_is_no_day() {
+        cards.insertOneOff("open", null, MON, 0);
+        cards.insertOneOff("done", null, MON, 1);
+        cards.setDoneOn(2, MON);
+
+        assertThatThrownBy(() -> handler.move(1, MON.minusDays(1).toString(), null))
+            .isInstanceOf(RejectedException.class).hasMessage("A task cannot be moved to a past day.");
+        assertThatThrownBy(() -> handler.move(2, TUE.toString(), null))
+            .isInstanceOf(RejectedException.class).hasMessage("A done task cannot be moved.");
+        assertThatThrownBy(() -> handler.move(42, TUE.toString(), null))
+            .isInstanceOf(RejectedException.class).hasMessage("That task does not exist (any more).");
+        assertThatThrownBy(() -> handler.move(1, "someday", null))
+            .isInstanceOf(RejectedException.class).hasMessage("A task can only be moved to a day or to Future.");
+        assertThat(cards.all()).extracting(Card::dueOn, Card::position).containsExactly(tuple(MON, 0), tuple(MON, 1));
     }
 }

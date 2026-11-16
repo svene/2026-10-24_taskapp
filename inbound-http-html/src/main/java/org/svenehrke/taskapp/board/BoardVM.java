@@ -29,7 +29,7 @@ public record BoardVM(List<DayColumnVM> days, FutureVM future, NewCardVM newCard
     static BoardVM of(Board board, NewCardVM newCard, QuickAddError quickAddError) {
         var today = board.days().getFirst().date();
         var days = board.days().stream().map(day -> DayColumnVM.of(day, today, board.overdue(), quickAddError)).toList();
-        return new BoardVM(days, FutureVM.of(board.future()), newCard, null);
+        return new BoardVM(days, FutureVM.of(board.future(), today), newCard, null);
     }
 
     /** The Board after a rejected command, with its reason as the notice. */
@@ -59,8 +59,8 @@ public record BoardVM(List<DayColumnVM> days, FutureVM future, NewCardVM newCard
                 ? quickAddError.message() : null;
             return new DayColumnVM("col-" + date, date.toString(), WEEKDAY.format(date), DAY_MONTH.format(date),
                 date.equals(today), weekend,
-                date.equals(today) ? overdueBox.stream().map(card -> CardVM.of(card, true)).toList() : List.of(),
-                day.cards().stream().map(card -> CardVM.of(card, false)).toList(), error);
+                date.equals(today) ? overdueBox.stream().map(card -> CardVM.of(card, today, true)).toList() : List.of(),
+                day.cards().stream().map(card -> CardVM.of(card, today, false)).toList(), error);
         }
     }
 
@@ -70,22 +70,41 @@ public record BoardVM(List<DayColumnVM> days, FutureVM future, NewCardVM newCard
      */
     public record FutureVM(String from, String fromLabel, List<CardVM> nearest, List<CardVM> more) {
 
-        static FutureVM of(Board.Future future) {
+        static FutureVM of(Board.Future future, LocalDate today) {
             return new FutureVM(future.from().toString(), "from " + DAY_MONTH.format(future.from()),
-                future.nearest().stream().map(card -> CardVM.of(card, true)).toList(),
-                future.more().stream().map(card -> CardVM.of(card, true)).toList());
+                future.nearest().stream().map(card -> CardVM.of(card, today, true)).toList(),
+                future.more().stream().map(card -> CardVM.of(card, today, true)).toList());
         }
     }
 
     /**
      * A compact Card: its title and markers. {@code dateLabel} ("9 Nov") is set for Cards in Future and in the
      * Overdue box. {@code done}: struck through, its checkbox ticked. {@code overdue}: shows ⚠.
+     * {@code originalLabel}: the original due date ("25 Oct") shown after ⇢ when it differs from the due date.
+     * {@code moves}: the card buttons' targets, {@code null} for a Done Card (it cannot be moved).
      */
-    public record CardVM(String id, long taskId, String title, String dateLabel, boolean done, boolean overdue) {
+    public record CardVM(String id, long taskId, String title, String dateLabel, boolean done, boolean overdue,
+        String originalLabel, MovesVM moves) {
 
-        static CardVM of(BoardCard card, boolean withDate) {
+        static CardVM of(BoardCard card, LocalDate today, boolean withDate) {
             return new CardVM("card-" + card.id(), card.id(), card.title(),
-                withDate ? DAY_MONTH.format(card.dueOn()) : null, card.done(), card.overdue());
+                withDate ? DAY_MONTH.format(card.dueOn()) : null, card.done(), card.overdue(),
+                card.rescheduled() ? DAY_MONTH.format(card.originalDueOn()) : null,
+                card.done() ? null : MovesVM.of(card, today));
+        }
+    }
+
+    /**
+     * The card buttons' absolute targets (ISO dates), posted as {@code target} of a Move. {@code toToday}: only for
+     * an Overdue Card, else {@code null}. {@code plusDay} / {@code plusWeek} count from the due date, or from today
+     * for an Overdue Card (its due date is past, so a day later could still be past).
+     */
+    public record MovesVM(String toToday, String plusDay, String plusWeek) {
+
+        static MovesVM of(BoardCard card, LocalDate today) {
+            var from = card.overdue() ? today : card.dueOn();
+            return new MovesVM(card.overdue() ? today.toString() : null,
+                from.plusDays(1).toString(), from.plusWeeks(1).toString());
         }
     }
 

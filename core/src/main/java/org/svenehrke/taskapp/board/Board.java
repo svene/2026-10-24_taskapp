@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.svenehrke.taskapp.card.Card;
+import org.svenehrke.taskapp.shared.Span;
 
 /**
  * The rolling calendar the owner sees: {@link #SPAN_DAYS} day Columns from today, then Future.
@@ -13,8 +14,8 @@ import org.svenehrke.taskapp.card.Card;
  */
 public record Board(List<BoardDay> days, List<BoardCard> overdue, Future future) {
 
-    /** The span: Today plus 13 more days. */
-    public static final int SPAN_DAYS = 14;
+    /** The span: Today plus 13 more days ({@link Span#DAYS}). */
+    public static final int SPAN_DAYS = Span.DAYS;
 
     /** How many Cards Future shows before "+N more". */
     public static final int FUTURE_NEAREST = 5;
@@ -26,7 +27,7 @@ public record Board(List<BoardDay> days, List<BoardCard> overdue, Future future)
 
     /** The day after the span, where Future starts. */
     static LocalDate futureFrom(LocalDate today) {
-        return today.plusDays(SPAN_DAYS);
+        return Span.futureFrom(today);
     }
 
     /**

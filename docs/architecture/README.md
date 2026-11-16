@@ -36,7 +36,7 @@ as PRAGMAs on every connection it opens. The Agroal pool has one connection (SQL
 
 ### Card-creating Receivers live in `board`
 
-`CardReceiver` (create, quick-add, open the New Task modal, tick, untick) is in package `board`, not `card`. Every response is
+`CardReceiver` (create, quick-add, open the New Task modal, tick, untick, move) is in package `board`, not `card`. Every response is
 the whole Board, so it calls `BoardHandler`, and `card` must not depend on `board` (`board` → `card` already; the
 cycle check in `ArchitectureTest` would fail).
 

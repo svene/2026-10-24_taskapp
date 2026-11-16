@@ -31,6 +31,17 @@ public class InMemoryCardRepository implements CardRepositorySPI {
     }
 
     @Override
+    public List<Card> dueOn(LocalDate day) {
+        return rows.stream().filter(card -> card.dueOn().equals(day)).sorted(BOARD_ORDER).toList();
+    }
+
+    @Override
+    public void setDueOnAndPosition(long id, LocalDate dueOn, int position) {
+        rows.replaceAll(c -> c.id() != id ? c
+            : new Card(c.id(), c.recurringTaskId(), c.title(), c.notes(), dueOn, c.originalDueOn(), position, c.doneOn()));
+    }
+
+    @Override
     public OptionalInt maxPosition(LocalDate dueOn) {
         return rows.stream().filter(card -> card.dueOn().equals(dueOn)).mapToInt(Card::position).max();
     }

@@ -1,5 +1,5 @@
 import {html} from "hono/html";
-import type {BoardVM, CardVM, DayColumnVM, FutureVM, NewCardVM} from "../html/generated/vm-types";
+import type {BoardVM, CardVM, DayColumnVM, FutureVM, MovesVM, NewCardVM} from "../html/generated/vm-types";
 import type {HtmlResult} from "../html/route-types";
 
 // Two rows of 7 day Columns, with Future as a sidebar spanning both rows (spec §3.1).
@@ -68,7 +68,8 @@ const FutureColumn = (f: FutureVM): HtmlResult => html`
 `;
 
 // Compact: the Tick checkbox, the title and markers; notes are shown in the modal. Cards in Future and in the
-// Overdue box also show their date, Overdue ones with ⚠. Ticking posts to tick or untick, answered with the Board.
+// Overdue box also show their date, Overdue ones with ⚠; a moved Card shows ⇢ and its original due date.
+// Ticking posts to tick or untick, the card buttons (on hover or focus) to move; each is answered with the Board.
 const Card = (c: CardVM): HtmlResult => html`
 	<div class="tcard ${c.done ? "is-done" : ""} ${c.overdue ? "is-overdue" : ""}" id="${c.id}">
 		<input type="hidden" name="taskId" value="${c.taskId}">
@@ -77,7 +78,23 @@ const Card = (c: CardVM): HtmlResult => html`
 			hx-post="/cards/${c.taskId}/${c.done ? "untick" : "tick"}" hx-trigger="change">
 		${c.dateLabel ? html`<span class="tcard-date">${c.overdue ? "⚠ " : ""}${c.dateLabel}</span>` : ""}
 		<span class="tcard-title">${c.title}</span>
+		${c.originalLabel ? html`<span class="tcard-original" title="Original due date ${c.originalLabel}">⇢ ${c.originalLabel}</span>` : ""}
+		${c.moves ? CardButtons(c.taskId, c.title, c.moves) : ""}
 	</div>
+`;
+
+// The non-drag fallback (spec §3.2): absolute dates from the server, posted as the Move's target.
+const CardButtons = (taskId: number, title: string, m: MovesVM): HtmlResult => html`
+	<span class="tcard-actions">
+		${m.toToday ? MoveButton(taskId, m.toToday, "→Today", `Move ${title} to Today`, "today") : ""}
+		${MoveButton(taskId, m.plusDay, "+1d", `Move ${title} one day later`, "day")}
+		${MoveButton(taskId, m.plusWeek, "+1w", `Move ${title} one week later`, "week")}
+	</span>
+`;
+
+const MoveButton = (taskId: number, target: string, label: string, title: string, kind: string): HtmlResult => html`
+	<button type="button" class="tcard-move" id="move-${kind}-${taskId}" title="${title}" aria-label="${title}"
+		hx-post="/cards/${taskId}/move" hx-vals='{"target": "${target}"}'>${label}</button>
 `;
 
 const closeModal = "this.closest('.modal').remove()";

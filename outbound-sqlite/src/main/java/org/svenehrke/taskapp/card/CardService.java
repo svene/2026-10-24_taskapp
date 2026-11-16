@@ -31,6 +31,16 @@ class CardService implements CardRepositorySPI {
     }
 
     @Override
+    public List<Card> dueOn(LocalDate day) {
+        return db.query("SELECT " + COLUMNS + " FROM card WHERE due_on = ? ORDER BY position, id", CardService::card, day);
+    }
+
+    @Override
+    public void setDueOnAndPosition(long id, LocalDate dueOn, int position) {
+        db.update("UPDATE card SET due_on = ?, position = ? WHERE id = ?", dueOn, position, id);
+    }
+
+    @Override
     public OptionalInt maxPosition(LocalDate dueOn) {
         return db.queryOne("SELECT max(position) FROM card WHERE due_on = ?", rs -> {
                 var max = rs.getInt(1);

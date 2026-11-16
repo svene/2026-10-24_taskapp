@@ -5,7 +5,9 @@ import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import org.svenehrke.taskapp.shared.RejectedException;
+import org.svenehrke.taskapp.shared.Span;
 
 /** Inbound port: the use cases on Cards. Commands return {@code void}; the Receiver then reads the Board. */
 @ApplicationScoped
@@ -45,6 +47,33 @@ public class CardHandler {
     @Transactional
     public void untick(long id) {
         if (existing(id).done()) cards.setDoneOn(id, null);
+    }
+
+    /**
+     * The Move of spec §2.5, for the card buttons, drag-and-drop and the edit modal: the Card goes to {@code target}
+     * (an ISO day from today on, or {@code future}), right above the Card {@code before}, or to the bottom when
+     * {@code before} is null or not on that day. The target day is renumbered densely 0..n, the source day is not.
+     * Only the due date and position change; the original due date stays.
+     *
+     * @throws RejectedException for an unknown id, a Done Card, a past day or a target that is neither
+     */
+    @Transactional
+    public void move(long id, String target, Long before) {
+        var card = existing(id);
+        if (card.done()) throw new RejectedException("A done task cannot be moved.");
+        var today = LocalDate.now(clock);
+        var day = switch (MoveTarget.parse(target)) {
+            case MoveTarget.Day(var date) -> date;
+            case MoveTarget.Future() -> Span.futureFrom(today);
+        };
+        if (day.isBefore(today)) throw new RejectedException("A task cannot be moved to a past day.");
+
+        var order = new ArrayList<>(cards.dueOn(day).stream().map(Card::id).filter(other -> other != id).toList());
+        int at = before == null ? -1 : order.indexOf(before);
+        order.add(at < 0 ? order.size() : at, id);
+        for (int position = 0; position < order.size(); position++) {
+            cards.setDueOnAndPosition(order.get(position), day, position);
+        }
     }
 
     private Card existing(long id) {

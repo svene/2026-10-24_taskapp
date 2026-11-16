@@ -77,6 +77,28 @@ class RecurringTaskService implements RecurringTaskRepositorySPI {
         db.update("UPDATE recurring_task SET produced_through = ? WHERE id = ?", producedThrough, id);
     }
 
+    /** Sets every Schedule column, nulling those the new kind does not use. */
+    @Override
+    public void update(long id, String title, String notes, Schedule schedule, LocalDate producedThrough) {
+        var sql = "UPDATE recurring_task SET title = ?, notes = ?, starts_on = ?, kind = ?, every_weeks = ?, weekdays = ?,"
+            + " month_day = ?, after_amount = ?, after_unit = ?, produced_through = ? WHERE id = ?";
+        switch (schedule) {
+            case Weekly w -> db.update(sql, title, notes, w.startsOn(), "WEEKLY", w.everyWeeks(), mask(w.weekdays()),
+                null, null, null, producedThrough, id);
+            case MonthlyOnDay m -> db.update(sql, title, notes, m.startsOn(), "MONTHLY_DAY", null, null,
+                m.day(), null, null, producedThrough, id);
+            case MonthlyLastDay m -> db.update(sql, title, notes, m.startsOn(), "MONTHLY_LAST", null, null,
+                null, null, null, producedThrough, id);
+            case AfterDone a -> db.update(sql, title, notes, a.startsOn(), "AFTER_DONE", null, null,
+                null, a.amount(), a.unit().name(), producedThrough, id);
+        }
+    }
+
+    @Override
+    public void stop(long id, LocalDate stoppedOn) {
+        db.update("UPDATE recurring_task SET stopped_on = ? WHERE id = ?", stoppedOn, id);
+    }
+
     private static RecurringTask task(ResultSet rs) throws SQLException {
         var kind = rs.getString("kind");
         Schedule schedule = switch (kind) {

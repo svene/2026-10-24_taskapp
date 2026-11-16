@@ -5,6 +5,7 @@ import static java.time.DayOfWeek.THURSDAY;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.LocalDate;
+import org.svenehrke.taskapp.card.MutableTestClock;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.svenehrke.taskapp.recurring.InMemoryRecurringTaskRepository.Occurrence;
@@ -14,8 +15,8 @@ class OccurrenceProducerTest {
     private static final LocalDate SUN_25_OCT = LocalDate.of(2026, 10, 25);
 
     private final InMemoryRecurringTaskRepository tasks = new InMemoryRecurringTaskRepository();
-    private final RecurringTaskHandler handler = new RecurringTaskHandler(tasks);
     private final OccurrenceProducer producer = new OccurrenceProducer(tasks);
+    private final RecurringTaskHandler handler = new RecurringTaskHandler(new MutableTestClock(SUN_25_OCT), tasks, producer);
 
     /** The example of the slice: Mon and Thu every week, from today. */
     @Test

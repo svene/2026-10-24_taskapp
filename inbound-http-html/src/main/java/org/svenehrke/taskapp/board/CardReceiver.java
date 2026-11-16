@@ -221,7 +221,7 @@ public class CardReceiver {
     }
 
     /** The ISO weekday numbers among {@code values}, for re-rendering the ticked boxes. */
-    private static List<Integer> weekdayNumbers(List<String> values) {
+    static List<Integer> weekdayNumbers(List<String> values) {
         return values == null ? List.of() : values.stream()
             .map(v -> { try { return Integer.valueOf(v.strip()); } catch (NumberFormatException e) { return null; } })
             .filter(n -> n != null && n >= 1 && n <= 7).distinct().sorted().toList();

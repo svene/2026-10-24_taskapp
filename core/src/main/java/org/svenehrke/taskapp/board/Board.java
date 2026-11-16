@@ -3,6 +3,7 @@ package org.svenehrke.taskapp.board;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.svenehrke.taskapp.card.Card;
@@ -34,17 +35,19 @@ public record Board(List<BoardDay> days, List<BoardCard> overdue, Future future)
      * @param overdueBox   the Cards of the Overdue box (see {@code CardRepositorySPI.overdueBox}), in Board order
      * @param inSpan       the Cards due within the span, ordered by due date, position, id
      * @param openInFuture the open Cards due from {@link #futureFrom} on, in the same order
+     * @param stale        which Occurrences are Stale (spec §2.4); Stale Cards never take one of Future's nearest places
      */
-    static Board of(LocalDate today, List<Card> overdueBox, List<Card> inSpan, List<Card> openInFuture) {
+    static Board of(LocalDate today, List<Card> overdueBox, List<Card> inSpan, List<Card> openInFuture, Predicate<Card> stale) {
         Map<LocalDate, List<BoardCard>> byDay = inSpan.stream()
-            .collect(Collectors.groupingBy(Card::dueOn, Collectors.mapping(card -> BoardCard.of(card, today), Collectors.toList())));
+            .collect(Collectors.groupingBy(Card::dueOn, Collectors.mapping(card -> BoardCard.of(card, today, stale.test(card)), Collectors.toList())));
         var days = Stream.iterate(today, day -> day.plusDays(1)).limit(SPAN_DAYS)
             .map(day -> new BoardDay(day, byDay.getOrDefault(day, List.of())))
             .toList();
-        var future = openInFuture.stream().map(card -> BoardCard.of(card, today)).toList();
-        int nearest = Math.min(FUTURE_NEAREST, future.size());
-        var overdue = overdueBox.stream().map(card -> BoardCard.of(card, today)).toList();
-        return new Board(days, overdue, new Future(futureFrom(today), future.subList(0, nearest), future.subList(nearest, future.size())));
+        var future = openInFuture.stream().map(card -> BoardCard.of(card, today, stale.test(card))).toList();
+        var nearest = future.stream().filter(card -> !card.stale()).limit(FUTURE_NEAREST).toList();
+        var more = future.stream().filter(card -> !nearest.contains(card)).toList();
+        var overdue = overdueBox.stream().map(card -> BoardCard.of(card, today, stale.test(card))).toList();
+        return new Board(days, overdue, new Future(futureFrom(today), nearest, more));
     }
 
     /** One day Column; its Cards in Board order (position, id). */
@@ -56,7 +59,7 @@ public record Board(List<BoardDay> days, List<BoardCard> overdue, Future future)
 
     /**
      * Everything open and due on or after {@code from}, the day after the span: the {@link #FUTURE_NEAREST} nearest
-     * Cards, and the rest behind "+N more".
+     * Cards that are not Stale, and the rest (Stale ones included) behind "+N more", both in Board order.
      */
     public record Future(LocalDate from, List<BoardCard> nearest, List<BoardCard> more) {
         public Future {
@@ -67,7 +70,7 @@ public record Board(List<BoardDay> days, List<BoardCard> overdue, Future future)
 
     /**
      * A Card as the Board shows it, with what is derived from the facts: {@code overdue} = due before today and not
-     * Done. {@code recurringTaskId} is null for a One-off Task.
+     * Done; {@code stale} see {@code RecurringTask.stale}. {@code recurringTaskId} is null for a One-off Task.
      */
     public record BoardCard(
         long id,
@@ -80,9 +83,9 @@ public record Board(List<BoardDay> days, List<BoardCard> overdue, Future future)
         boolean rescheduled,
         Long recurringTaskId
     ) {
-        static BoardCard of(Card card, LocalDate today) {
+        static BoardCard of(Card card, LocalDate today, boolean stale) {
             return new BoardCard(card.id(), card.title(), card.dueOn(), card.originalDueOn(), card.done(),
-                !card.done() && card.dueOn().isBefore(today), false, !card.dueOn().equals(card.originalDueOn()),
+                !card.done() && card.dueOn().isBefore(today), stale, !card.dueOn().equals(card.originalDueOn()),
                 card.recurringTaskId());
         }
     }

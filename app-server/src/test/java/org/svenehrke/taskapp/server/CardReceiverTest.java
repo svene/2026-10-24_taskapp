@@ -84,6 +84,8 @@ class CardReceiverTest {
               "everyWeeks": "1",
               "monthDay": "28",
               "startsOn": "2026-10-25",
+              "afterAmount": "1",
+              "afterUnit": "WEEKS",
               "errors": {},
               "preview": {
                 "dates": ["Wed 28 Oct 2026", "Wed 4 Nov 2026", "Wed 11 Nov 2026", "Wed 18 Nov 2026", "Wed 25 Nov 2026"],
@@ -127,6 +129,8 @@ class CardReceiverTest {
               "everyWeeks": "",
               "monthDay": "",
               "startsOn": "",
+              "afterAmount": "",
+              "afterUnit": "",
               "errors": {"title": "Title must not be blank."},
               "preview": {"dates": [], "message": "Choose how the task repeats. Start date is required."}
             }

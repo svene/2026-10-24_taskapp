@@ -6,6 +6,10 @@ import static org.assertj.core.api.Assertions.tuple;
 
 import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
+import org.svenehrke.taskapp.recurring.AfterDone;
+import org.svenehrke.taskapp.recurring.InMemoryRecurringTaskRepository;
+import org.svenehrke.taskapp.recurring.InMemoryRecurringTaskRepository.Occurrence;
+import org.svenehrke.taskapp.recurring.OccurrenceProducer;
 import org.svenehrke.taskapp.shared.RejectedException;
 
 class CardHandlerTest {
@@ -15,7 +19,8 @@ class CardHandlerTest {
 
     private final InMemoryCardRepository cards = new InMemoryCardRepository();
     private final MutableTestClock clock = new MutableTestClock(MON);
-    private final CardHandler handler = new CardHandler(clock, cards);
+    private final InMemoryRecurringTaskRepository recurringTasks = new InMemoryRecurringTaskRepository();
+    private final CardHandler handler = new CardHandler(clock, cards, new OccurrenceProducer(recurringTasks));
 
     @Test
     void creates_a_one_off_task_whose_original_due_date_is_its_due_date() {
@@ -72,6 +77,27 @@ class CardHandlerTest {
         handler.tick(1);
 
         assertThat(cards.all()).extracting(Card::doneOn).containsExactly(MON);
+    }
+
+    @Test
+    void ticking_off_an_after_done_occurrence_produces_its_successor() {
+        recurringTasks.insert("Descale the kettle", null, new AfterDone(1, AfterDone.Unit.WEEKS, MON), null);
+        cards.insertOccurrence(1, MON, 0);
+        clock.setToday(TUE);
+
+        handler.tick(1);
+
+        assertThat(recurringTasks.occurrences()).containsExactly(new Occurrence(1, TUE.plusWeeks(1)));
+    }
+
+    @Test
+    void saving_an_after_done_occurrence_as_done_produces_its_successor() {
+        recurringTasks.insert("Descale the kettle", null, new AfterDone(2, AfterDone.Unit.DAYS, MON), null);
+        cards.insertOccurrence(1, MON, 0);
+
+        handler.editOccurrence(1, MON, true);
+
+        assertThat(recurringTasks.occurrences()).containsExactly(new Occurrence(1, MON.plusDays(2)));
     }
 
     @Test

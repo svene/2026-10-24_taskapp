@@ -117,9 +117,10 @@ const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 const KINDS = [["WEEKLY", "Weekly"], ["MONTHLY_DAY", "Monthly on day"], ["MONTHLY_LAST", "Monthly on the last day"]];
 
-// The New Task modal (spec §3.2): One-off (a due date) or Repeats on a calendar (Weekly: weekdays and every N weeks;
-// Monthly on day N; Monthly on the last day; each from a Start date). Only the chosen kind's fields are shown (CSS
-// :has); the server validates only those. Any change in the form refreshes the preview of the next dates, swapped
+// The New Task modal (spec §3.2): One-off (a due date), Repeats on a calendar (Weekly: weekdays and every N weeks;
+// Monthly on day N; Monthly on the last day) or Repeats after done (every N days or weeks after each tick-off); both
+// recurring choices from a Start date. Only the chosen kind's fields are shown (CSS :has); the server validates only
+// those. Any change in the form refreshes the preview of the next dates, swapped
 // into its own box rather than morphing the Board.
 const NewCardModal = (f: NewCardVM): HtmlResult => Modal("new-card", "New task", "/cards", "Create", html`
 	${TitleNotes("new-card", f.title, f.notes, f.errors)}
@@ -129,11 +130,14 @@ const NewCardModal = (f: NewCardVM): HtmlResult => Modal("new-card", "New task",
 				${f.repeats === "once" ? "checked" : ""}> One-off</label>
 			<label class="radio"><input type="radio" name="repeats" value="calendar" id="new-card-calendar"
 				${f.repeats === "calendar" ? "checked" : ""}> Repeats on a calendar</label>
+			<label class="radio"><input type="radio" name="repeats" value="afterDone" id="new-card-afterDone"
+				${f.repeats === "afterDone" ? "checked" : ""}> Repeats after done</label>
 		</div>
 	</div>
 	<div class="once-only">
 		${DueField("new-card", f.dueOn, undefined, f.errors["dueOn"])}
 	</div>
+	<div class="recurring-only">
 	<div class="calendar-only">
 		${Field("new-card", "Repeats", "kind", f.errors["kind"], html`
 			<div class="select"><select id="new-card-kind" name="kind">
@@ -159,6 +163,19 @@ const NewCardModal = (f: NewCardVM): HtmlResult => Modal("new-card", "New task",
 				<input class="input month-day ${f.errors["monthDay"] ? "is-danger" : ""}" id="new-card-monthDay"
 					name="monthDay" type="number" min="1" max="28" value="${f.monthDay}">`)}
 		</div>
+	</div>
+	<div class="after-done-only">
+		${Field("new-card", "Every", "afterAmount", f.errors["afterAmount"] ?? f.errors["afterUnit"], html`
+			<div class="field has-addons">
+				<div class="control"><input class="input after-amount ${f.errors["afterAmount"] ? "is-danger" : ""}"
+					id="new-card-afterAmount" name="afterAmount" type="number" min="1" value="${f.afterAmount}"></div>
+				<div class="control"><div class="select"><select id="new-card-afterUnit" name="afterUnit">
+					${[["DAYS", "days"], ["WEEKS", "weeks"]].map(([value, label]) => html`
+						<option value="${value}" ${f.afterUnit === value ? "selected" : ""}>${label}</option>`)}
+				</select></div></div>
+			</div>
+			<p class="help">after each time it is done</p>`)}
+	</div>
 		${Field("new-card", "Starts", "startsOn", f.errors["startsOn"], html`
 			<input class="input ${f.errors["startsOn"] ? "is-danger" : ""}" id="new-card-startsOn" name="startsOn"
 				type="date" value="${f.startsOn}">`)}

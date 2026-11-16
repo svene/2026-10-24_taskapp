@@ -27,6 +27,7 @@ import org.svenehrke.taskapp.card.ParsedOneOffTask;
 import org.svenehrke.taskapp.recurring.ParsedRecurringTask;
 import org.svenehrke.taskapp.recurring.ParsedSchedule;
 import org.svenehrke.taskapp.recurring.SchedulePreviewVM;
+import org.svenehrke.taskapp.recurring.ScheduleReceiver;
 import org.svenehrke.taskapp.recurring.RecurringTaskHandler;
 import org.svenehrke.taskapp.html.UiResponse;
 import org.svenehrke.taskapp.html.UiRoute;
@@ -59,18 +60,21 @@ public class CardReceiver {
     }
 
     /**
-     * The New Task modal's submit: a One-off Task, or with {@code repeats=calendar} a Recurring Task (its Occurrences
-     * appear with the Board read that follows). Rejected input re-opens the modal with its messages (400).
+     * The New Task modal's submit: a One-off Task, or with {@code repeats=calendar} or {@code afterDone} a Recurring
+     * Task (its Occurrences appear with the Board read that follows). Rejected input re-opens the modal with its
+     * messages (400).
      */
     @POST
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     public Response create(@FormParam("repeats") String repeats, @FormParam("title") String title,
         @FormParam("notes") String notes, @FormParam("dueOn") String dueOn, @FormParam("kind") String kind,
         @FormParam("weekdays") List<String> weekdays, @FormParam("everyWeeks") String everyWeeks,
-        @FormParam("monthDay") String monthDay, @FormParam("startsOn") String startsOn) {
-        var schedule = new ParsedSchedule.Input(kind, weekdays, everyWeeks, monthDay, startsOn);
+        @FormParam("monthDay") String monthDay, @FormParam("startsOn") String startsOn,
+        @FormParam("afterAmount") String afterAmount, @FormParam("afterUnit") String afterUnit) {
+        var recurring = NewCardVM.CALENDAR.equals(repeats) || NewCardVM.AFTER_DONE.equals(repeats);
+        var schedule = ScheduleReceiver.input(repeats, kind, weekdays, everyWeeks, monthDay, startsOn, afterAmount, afterUnit);
         Map<String, String> errors;
-        if (NewCardVM.CALENDAR.equals(repeats)) {
+        if (recurring) {
             switch (ParsedRecurringTask.parse(title, notes, schedule)) {
                 case ParsedRecurringTask.Valid task -> {
                     recurringTaskHandler.create(task.title(), task.notes(), task.schedule());
@@ -86,9 +90,9 @@ public class CardReceiver {
                 case ParsedOneOffTask.Invalid invalid -> errors = invalid.errors();
             }
         }
-        var form = new NewCardVM(NewCardVM.CALENDAR.equals(repeats) ? NewCardVM.CALENDAR : NewCardVM.ONCE, orEmpty(title),
-            orEmpty(notes), orEmpty(dueOn), orEmpty(kind), weekdayNumbers(weekdays), orEmpty(everyWeeks), orEmpty(monthDay),
-            orEmpty(startsOn), errors, SchedulePreviewVM.of(schedule));
+        var form = new NewCardVM(recurring ? repeats : NewCardVM.ONCE, orEmpty(title), orEmpty(notes), orEmpty(dueOn),
+            orEmpty(kind), weekdayNumbers(weekdays), orEmpty(everyWeeks), orEmpty(monthDay), orEmpty(startsOn),
+            orEmpty(afterAmount), orEmpty(afterUnit), errors, SchedulePreviewVM.of(schedule));
         return UiResponse.response(Status.BAD_REQUEST, UiRoute.BoardPage, BoardVM.of(boardHandler.board(), form, null));
     }
 

@@ -20,10 +20,13 @@ public sealed interface ParsedSchedule {
     String EVERY_WEEKS = "everyWeeks";
     String MONTH_DAY = "monthDay";
     String STARTS_ON = "startsOn";
+    String AFTER_AMOUNT = "afterAmount";
+    String AFTER_UNIT = "afterUnit";
 
     String WEEKLY = "WEEKLY";
     String MONTHLY_DAY = "MONTHLY_DAY";
     String MONTHLY_LAST = "MONTHLY_LAST";
+    String AFTER_DONE = "AFTER_DONE";
 
     record Valid(Schedule schedule) implements ParsedSchedule {}
 
@@ -37,13 +40,16 @@ public sealed interface ParsedSchedule {
     /**
      * The Schedule fields as typed.
      *
-     * @param kind       {@link #WEEKLY}, {@link #MONTHLY_DAY} or {@link #MONTHLY_LAST}
-     * @param weekdays   Weekly: the ticked weekdays as ISO numbers, 1 (Monday) to 7 (Sunday); may be null
-     * @param everyWeeks Weekly: the N of "every N weeks"
-     * @param monthDay   Monthly on day: the N of "day N", 1–28
-     * @param startsOn   ISO date
+     * @param kind        {@link #WEEKLY}, {@link #MONTHLY_DAY}, {@link #MONTHLY_LAST} or {@link #AFTER_DONE}
+     * @param weekdays    Weekly: the ticked weekdays as ISO numbers, 1 (Monday) to 7 (Sunday); may be null
+     * @param everyWeeks  Weekly: the N of "every N weeks"
+     * @param monthDay    Monthly on day: the N of "day N", 1–28
+     * @param startsOn    ISO date
+     * @param afterAmount After done: the N of "N days or weeks after done"
+     * @param afterUnit   After done: {@code DAYS} or {@code WEEKS}
      */
-    record Input(String kind, List<String> weekdays, String everyWeeks, String monthDay, String startsOn) {}
+    record Input(String kind, List<String> weekdays, String everyWeeks, String monthDay, String startsOn,
+                 String afterAmount, String afterUnit) {}
 
     static ParsedSchedule parse(Input input) {
         var errors = errors(input);
@@ -65,6 +71,11 @@ public sealed interface ParsedSchedule {
                 if (day < 1 || day > 28) errors.put(MONTH_DAY, "Day of the month needs a whole number from 1 to 28.");
             }
             case MONTHLY_LAST -> {}
+            case AFTER_DONE -> {
+                if (whole(input.afterAmount()) < 1)
+                    errors.put(AFTER_AMOUNT, "Every N days or weeks needs a whole number of at least 1.");
+                if (unit(input.afterUnit()) == null) errors.put(AFTER_UNIT, "Choose days or weeks.");
+            }
             default -> errors.put(KIND, "Choose how the task repeats.");
         }
         if (input.startsOn() == null || input.startsOn().isBlank()) {
@@ -82,6 +93,7 @@ public sealed interface ParsedSchedule {
             case WEEKLY -> new Weekly(weekdays(input.weekdays()), whole(input.everyWeeks()), start);
             case MONTHLY_DAY -> new MonthlyOnDay(whole(input.monthDay()), start);
             case MONTHLY_LAST -> new MonthlyLastDay(start);
+            case AFTER_DONE -> new AfterDone(whole(input.afterAmount()), unit(input.afterUnit()), start);
             default -> throw new IllegalStateException("unreachable: " + input.kind());
         };
     }
@@ -92,6 +104,16 @@ public sealed interface ParsedSchedule {
         } catch (DateTimeParseException e) {
             return null;
         }
+    }
+
+    /** {@code DAYS} or {@code WEEKS}, or null for anything else. */
+    private static AfterDone.Unit unit(String value) {
+        if (value == null) return null;
+        return switch (value.strip()) {
+            case "DAYS" -> AfterDone.Unit.DAYS;
+            case "WEEKS" -> AfterDone.Unit.WEEKS;
+            default -> null;
+        };
     }
 
     /** The valid ISO weekday numbers among {@code values}; anything else is ignored. */

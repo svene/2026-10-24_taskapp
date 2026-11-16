@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.svenehrke</groupId>
+    <artifactId>taskapp</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>core</artifactId>
+  <packaging>jar</packaging>
+
+  <name>core</name>
+  <description>Domain + application layer: Cards, Recurring Tasks, the Board, and all inbound/outbound ports.
+    Deliberately free of any infrastructure dependency (no JDBC, no HTTP).</description>
+
+  <dependencies>
+    <!-- CDI only, so Handlers can be @ApplicationScoped beans and ports can be injected -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-arc</artifactId>
+    </dependency>
+    <!-- @Transactional sits on Handler methods (deviation from the reference, see docs/architecture);
+         the interceptor itself comes from quarkus-narayana-jta in outbound-sqlite -->
+    <dependency>
+      <groupId>jakarta.transaction</groupId>
+      <artifactId>jakarta.transaction-api</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+    </dependency>
+  </dependencies>
+</project>

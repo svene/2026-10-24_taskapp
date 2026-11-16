@@ -17,7 +17,7 @@ import org.svenehrke.taskapp.sqlite.Db;
 class RecurringTaskService implements RecurringTaskRepositorySPI {
 
     private static final String COLUMNS =
-        "id, title, notes, starts_on, stopped_on, kind, every_weeks, weekdays, produced_through";
+        "id, title, notes, starts_on, stopped_on, kind, every_weeks, weekdays, month_day, produced_through";
 
     @Inject
     Db db;
@@ -29,6 +29,14 @@ class RecurringTaskService implements RecurringTaskRepositorySPI {
                     + " (title, notes, starts_on, kind, every_weeks, weekdays, produced_through)"
                     + " VALUES (?, ?, ?, 'WEEKLY', ?, ?, ?)",
                 title, notes, weekly.startsOn(), weekly.everyWeeks(), mask(weekly.weekdays()), producedThrough);
+            case MonthlyOnDay monthly -> db.update("INSERT INTO recurring_task"
+                    + " (title, notes, starts_on, kind, month_day, produced_through)"
+                    + " VALUES (?, ?, ?, 'MONTHLY_DAY', ?, ?)",
+                title, notes, monthly.startsOn(), monthly.day(), producedThrough);
+            case MonthlyLastDay monthly -> db.update("INSERT INTO recurring_task"
+                    + " (title, notes, starts_on, kind, produced_through)"
+                    + " VALUES (?, ?, ?, 'MONTHLY_LAST', ?)",
+                title, notes, monthly.startsOn(), producedThrough);
         }
     }
 
@@ -62,6 +70,8 @@ class RecurringTaskService implements RecurringTaskRepositorySPI {
         Schedule schedule = switch (kind) {
             case "WEEKLY" -> new Weekly(weekdays(rs.getInt("weekdays")), rs.getInt("every_weeks"),
                 Db.date(rs, "starts_on"));
+            case "MONTHLY_DAY" -> new MonthlyOnDay(rs.getInt("month_day"), Db.date(rs, "starts_on"));
+            case "MONTHLY_LAST" -> new MonthlyLastDay(Db.date(rs, "starts_on"));
             default -> throw new IllegalStateException("Schedule kind not supported yet: " + kind);
         };
         return new RecurringTask(rs.getLong("id"), rs.getString("title"), rs.getString("notes"), schedule,

@@ -29,6 +29,17 @@ class OccurrenceProducerTest {
         assertThat(tasks.find(1).orElseThrow().producedThrough()).isEqualTo(date(11, 9));
     }
 
+    /** The example of the Monthly slice: 31 Oct in the span, 30 Nov the first date beyond it (Future). */
+    @Test
+    void monthly_on_the_last_day_produces_the_span_plus_the_first_date_beyond_it() {
+        handler.create("Pay rent", null, new MonthlyLastDay(SUN_25_OCT));
+
+        producer.catchUp(SUN_25_OCT);
+
+        assertThat(tasks.occurrences()).extracting(Occurrence::originalDueOn).containsExactly(date(10, 31), date(11, 30));
+        assertThat(tasks.find(1).orElseThrow().producedThrough()).isEqualTo(date(11, 30));
+    }
+
     @Test
     void a_second_catch_up_the_same_day_creates_nothing() {
         handler.create("Water plants", null, new Weekly(Set.of(MONDAY, THURSDAY), 1, SUN_25_OCT));

@@ -15,12 +15,18 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-/** A Weekly Recurring Task from the New Task modal, and its Occurrences, with the Clock on Sun 25 Oct 2026. */
+/**
+ * Weekly and Monthly Recurring Tasks from the New Task modal, their Occurrences, and the modal's Schedule preview,
+ * with the Clock on Sun 25 Oct 2026.
+ */
 @QuarkusTest
 class RecurringReceiverTest {
 
     private static final String WATER = """
         {"title": "Water the plants", "recurring": true}""";
+
+    private static final String RENT = """
+        {"title": "Pay the rent", "recurring": true}""";
 
     /** Mon + Thu from today: 26, 29 Oct and 2, 5 Nov in the span (days[1], [4], [8], [11]). */
     private static final String MON_THU_COLUMNS = """
@@ -95,11 +101,91 @@ class RecurringReceiverTest {
               "kind": "WEEKLY",
               "weekdays": [],
               "everyWeeks": "2",
+              "monthDay": "",
               "startsOn": "2026-10-25",
-              "errors": {"weekdays": "Choose at least one weekday."}
+              "errors": {"weekdays": "Choose at least one weekday."},
+              "preview": {"dates": [], "message": "Choose at least one weekday."}
             }
             """);
         assertThatJson(json).inPath("$.vm.future.nearest").isArray().isEmpty();
+    }
+
+    /** The example of the Monthly slice: 31 Oct in the span (days[6]), 30 Nov beyond it in Future. */
+    @Test
+    void a_monthly_last_day_task_shows_this_months_end_in_the_span_and_the_next_in_future() {
+        var json = jsonBody(createMonthly("MONTHLY_LAST", null), 200);
+
+        assertThatJson(json).when(IGNORING_EXTRA_FIELDS).inPath("$.vm.days[*].cards").isEqualTo("""
+            [[], [], [], [], [], [], [%1$s], [], [], [], [], [], [], []]
+            """.formatted(RENT));
+        assertThatJson(json).when(IGNORING_EXTRA_FIELDS).inPath("vm.future.nearest").isEqualTo("""
+            [{"title": "Pay the rent", "dateLabel": "30 Nov", "recurring": true}]
+            """);
+    }
+
+    @Test
+    void a_monthly_on_day_task_is_produced_on_that_day_and_described_in_its_occurrences() {
+        var board = jsonBody(createMonthly("MONTHLY_DAY", "3"), 200);
+
+        assertThatJson(board).when(IGNORING_EXTRA_FIELDS).inPath("$.vm.days[*].cards").isEqualTo("""
+            [[], [], [], [], [], [], [], [], [], [%1$s], [], [], [], []]
+            """.formatted(RENT));
+        long id = occurrenceOn(board, 9);
+        var json = jsonBody(given().when().get("/cards/" + id + "/edit"), 200);
+        assertThatJson(json).inPath("vm.editOccurrence.schedule").isString()
+            .isEqualTo("Every month on day 3, from 25 Oct 2026");
+    }
+
+    @Test
+    void a_monthly_on_day_beyond_28_reopens_the_modal_with_its_message() {
+        var json = jsonBody(createMonthly("MONTHLY_DAY", "31"), 400);
+
+        assertThatJson(json).when(IGNORING_EXTRA_FIELDS).inPath("vm.newCard").isEqualTo("""
+            {
+              "kind": "MONTHLY_DAY",
+              "monthDay": "31",
+              "errors": {"monthDay": "Day of the month needs a whole number from 1 to 28."}
+            }
+            """);
+    }
+
+    @Test
+    void the_preview_shows_the_next_five_dates_of_the_schedule() {
+        var json = jsonBody(given().queryParam("kind", "MONTHLY_LAST").queryParam("startsOn", "2026-10-25")
+            .when().get("/schedules/preview"), 200);
+
+        assertThatJson(json).isEqualTo("""
+            {
+              "route": "SchedulePreview",
+              "vm": {
+                "dates": ["Sat 31 Oct 2026", "Mon 30 Nov 2026", "Thu 31 Dec 2026", "Sun 31 Jan 2027", "Sun 28 Feb 2027"],
+                "message": null
+              }
+            }
+            """);
+    }
+
+    @Test
+    void the_preview_of_a_weekly_schedule_reads_its_weekdays() {
+        var json = jsonBody(given().queryParam("kind", "WEEKLY").queryParam("weekdays", "1", "4")
+            .queryParam("everyWeeks", "2").queryParam("startsOn", "2026-10-25").when().get("/schedules/preview"), 200);
+
+        assertThatJson(json).inPath("vm.dates").isEqualTo("""
+            ["Mon 2 Nov 2026", "Thu 5 Nov 2026", "Mon 16 Nov 2026", "Thu 19 Nov 2026", "Mon 30 Nov 2026"]
+            """);
+    }
+
+    @Test
+    void the_preview_of_incomplete_fields_says_what_is_missing() {
+        var json = jsonBody(given().queryParam("kind", "MONTHLY_DAY").queryParam("monthDay", "29")
+            .queryParam("startsOn", "").when().get("/schedules/preview"), 200);
+
+        assertThatJson(json).inPath("vm").isEqualTo("""
+            {
+              "dates": [],
+              "message": "Day of the month needs a whole number from 1 to 28. Start date is required."
+            }
+            """);
     }
 
     @Test
@@ -162,6 +248,13 @@ class RecurringReceiverTest {
         return given().formParam("repeats", "calendar").formParam("title", "Water the plants")
             .formParam("notes", "from the rain barrel").formParam("dueOn", "2026-10-25").formParam("kind", "WEEKLY")
             .formParam("weekdays", (Object[]) weekdays).formParam("everyWeeks", "1").formParam("startsOn", startsOn)
+            .when().post("/cards");
+    }
+
+    private static Response createMonthly(String kind, String monthDay) {
+        return given().formParam("repeats", "calendar").formParam("title", "Pay the rent").formParam("notes", "")
+            .formParam("dueOn", "2026-10-25").formParam("kind", kind).formParam("everyWeeks", "1")
+            .formParam("monthDay", monthDay == null ? "" : monthDay).formParam("startsOn", "2026-10-25")
             .when().post("/cards");
     }
 

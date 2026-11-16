@@ -10,8 +10,12 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import org.svenehrke.taskapp.board.Board.BoardCard;
 import org.svenehrke.taskapp.card.Card;
+import org.svenehrke.taskapp.recurring.MonthlyLastDay;
+import org.svenehrke.taskapp.recurring.MonthlyOnDay;
+import org.svenehrke.taskapp.recurring.ParsedSchedule;
 import org.svenehrke.taskapp.recurring.RecurringTask;
 import org.svenehrke.taskapp.recurring.Schedule;
+import org.svenehrke.taskapp.recurring.SchedulePreviewVM;
 import org.svenehrke.taskapp.recurring.Weekly;
 
 /**
@@ -131,21 +135,29 @@ public record BoardVM(List<DayColumnVM> days, FutureVM future, NewCardVM newCard
 
     /**
      * The New Task modal: the values typed so far and the message per field. {@code repeats}: {@code once} (a One-off
-     * Task, due {@code dueOn}) or {@code calendar} (a Recurring Task of Schedule {@code kind}, so far only
-     * {@code WEEKLY}: {@code weekdays} as ISO numbers 1 = Monday .. 7 = Sunday, every {@code everyWeeks} weeks from
-     * {@code startsOn}).
+     * Task, due {@code dueOn}) or {@code calendar} (a Recurring Task of Schedule {@code kind} from {@code startsOn}:
+     * {@code WEEKLY} on {@code weekdays} as ISO numbers 1 = Monday .. 7 = Sunday, every {@code everyWeeks} weeks;
+     * {@code MONTHLY_DAY} on day {@code monthDay}; {@code MONTHLY_LAST} on the last day of the month).
+     * {@code preview}: the first dates of that Schedule, refreshed by {@code /schedules/preview} while typing.
      */
     public record NewCardVM(String repeats, String title, String notes, String dueOn, String kind, List<Integer> weekdays,
-        String everyWeeks, String startsOn, Map<String, String> errors) {
+        String everyWeeks, String monthDay, String startsOn, Map<String, String> errors, SchedulePreviewVM preview) {
 
         public static final String ONCE = "once";
         public static final String CALENDAR = "calendar";
 
-        /** A One-off Task due {@code dueOn}; switched to Weekly, it repeats on that weekday from today. */
+        /**
+         * A One-off Task due {@code dueOn}; switched to a calendar, it repeats from today on that weekday (Weekly) or
+         * on that day of the month (Monthly on day, at most 28).
+         */
         static NewCardVM empty(String dueOn, LocalDate today) {
-            var weekday = parseOrNull(dueOn);
-            return new NewCardVM(ONCE, "", "", dueOn, "WEEKLY",
-                List.of((weekday == null ? today : weekday).getDayOfWeek().getValue()), "1", today.toString(), Map.of());
+            var day = Objects.requireNonNullElse(parseOrNull(dueOn), today);
+            var weekdays = List.of(day.getDayOfWeek().getValue());
+            var monthDay = String.valueOf(Math.min(day.getDayOfMonth(), 28));
+            var input = new ParsedSchedule.Input(ParsedSchedule.WEEKLY, List.of(String.valueOf(weekdays.getFirst())), "1",
+                monthDay, today.toString());
+            return new NewCardVM(ONCE, "", "", dueOn, ParsedSchedule.WEEKLY, weekdays, "1", monthDay, today.toString(),
+                Map.of(), SchedulePreviewVM.of(input));
         }
 
         private static LocalDate parseOrNull(String date) {
@@ -200,12 +212,18 @@ public record BoardVM(List<DayColumnVM> days, FutureVM future, NewCardVM newCard
             return new EditOccurrenceVM(vm.id, vm.title, vm.notes, vm.schedule, dueOn, vm.minDueOn, done, errors);
         }
 
-        /** "Every week on Mon, Thu, from 25 Oct 2026"; "Every 2 weeks on Sun, from ...". */
+        /**
+         * "Every week on Mon, Thu, from 25 Oct 2026"; "Every 2 weeks on Sun, from ..."; "Every month on day 5, from ...";
+         * "Every month on the last day, from ...".
+         */
         static String describe(Schedule schedule) {
             return switch (schedule) {
                 case Weekly weekly -> (weekly.everyWeeks() == 1 ? "Every week" : "Every " + weekly.everyWeeks() + " weeks")
                     + " on " + weekly.weekdays().stream().sorted().map(WEEKDAY::format).collect(Collectors.joining(", "))
                     + ", from " + DAY_MONTH_YEAR.format(weekly.startsOn());
+                case MonthlyOnDay monthly -> "Every month on day " + monthly.day() + ", from "
+                    + DAY_MONTH_YEAR.format(monthly.startsOn());
+                case MonthlyLastDay monthly -> "Every month on the last day, from " + DAY_MONTH_YEAR.format(monthly.startsOn());
             };
         }
     }

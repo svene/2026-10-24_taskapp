@@ -22,7 +22,7 @@ import org.svenehrke.taskapp.html.UiResponse;
 import org.svenehrke.taskapp.html.UiRoute;
 
 /**
- * Creating Cards and ticking them off. It lives in {@code board}, not {@code card}: every response is the Board, and {@code card}
+ * Creating, ticking off and moving Cards. It lives in {@code board}, not {@code card}: every response is the Board, and {@code card}
  * must not depend on {@code board} (board → card already).
  */
 @RunOnVirtualThread
@@ -83,6 +83,27 @@ public class CardReceiver {
     public UiResponse untick(@PathParam("id") long id) {
         cardHandler.untick(id);
         return UiResponse.of(UiRoute.BoardPage, BoardVM.of(boardHandler.board()));
+    }
+
+    /**
+     * A Move (spec §2.5): {@code target} is an ISO day or {@code future}; {@code before} is the id of the Card to
+     * land above, blank or absent for the bottom. A rejected Move answers 409 ({@link RejectedExceptionMapper}).
+     */
+    @POST
+    @Path("{id}/move")
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    public UiResponse move(@PathParam("id") long id, @FormParam("target") String target, @FormParam("before") String before) {
+        cardHandler.move(id, target, cardId(before));
+        return UiResponse.of(UiRoute.BoardPage, BoardVM.of(boardHandler.board()));
+    }
+
+    /** A card id, or {@code null} when blank or not a number (the Move then goes to the bottom). */
+    private static Long cardId(String value) {
+        try {
+            return value == null || value.isBlank() ? null : Long.valueOf(value.strip());
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     private static String orEmpty(String value) {

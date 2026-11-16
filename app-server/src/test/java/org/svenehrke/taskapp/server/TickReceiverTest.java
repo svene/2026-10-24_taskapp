@@ -63,7 +63,8 @@ class TickReceiverTest {
         var overdue = jsonBody(given().when().get("/board"), 200);
 
         assertThatJson(overdue).inPath("vm.days[0].overdue").isEqualTo("""
-            [{"id": "card-%d", "taskId": %d, "title": "Pay the bill", "dateLabel": "20 Oct", "done": false, "overdue": true}]
+            [{"id": "card-%d", "taskId": %d, "title": "Pay the bill", "dateLabel": "20 Oct", "done": false, "overdue": true,
+              "originalLabel": null, "moves": {"toToday": "2026-10-25", "plusDay": "2026-10-26", "plusWeek": "2026-11-01"}}]
             """.formatted(id, id));
         assertThatJson(overdue).inPath("$.vm.days[1:].overdue[*]").isArray().isEmpty();
 

@@ -13,6 +13,12 @@ public interface CardRepositorySPI {
     /** Ticks the Card off on {@code doneOn}, or makes it open again when {@code doneOn} is null. */
     void setDoneOn(long id, LocalDate doneOn);
 
+    /** Every Card, open or Done, due on {@code day}, ordered by position, id. */
+    List<Card> dueOn(LocalDate day);
+
+    /** A Move's write: the Card's due date and position; nothing else changes. */
+    void setDueOnAndPosition(long id, LocalDate dueOn, int position);
+
     /** The highest {@code position} on that day, if any Card is due on it. */
     OptionalInt maxPosition(LocalDate dueOn);
 

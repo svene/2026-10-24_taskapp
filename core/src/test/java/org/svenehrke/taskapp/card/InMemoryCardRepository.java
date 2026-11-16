@@ -42,6 +42,17 @@ public class InMemoryCardRepository implements CardRepositorySPI {
     }
 
     @Override
+    public void setTitleAndNotes(long id, String title, String notes) {
+        rows.replaceAll(c -> c.id() != id ? c
+            : new Card(c.id(), c.recurringTaskId(), title, notes, c.dueOn(), c.originalDueOn(), c.position(), c.doneOn()));
+    }
+
+    /** An Occurrence of Recurring Task {@code recurringTaskId}, for tests that need one before Recurring Tasks exist. */
+    public void insertOccurrence(long recurringTaskId, LocalDate dueOn, int position) {
+        rows.add(new Card(rows.size() + 1, recurringTaskId, null, null, dueOn, dueOn, position, null));
+    }
+
+    @Override
     public OptionalInt maxPosition(LocalDate dueOn) {
         return rows.stream().filter(card -> card.dueOn().equals(dueOn)).mapToInt(Card::position).max();
     }

@@ -19,6 +19,9 @@ public interface CardRepositorySPI {
     /** A Move's write: the Card's due date and position; nothing else changes. */
     void setDueOnAndPosition(long id, LocalDate dueOn, int position);
 
+    /** An edit's write: a One-off Task's title and notes; nothing else changes. */
+    void setTitleAndNotes(long id, String title, String notes);
+
     /** The highest {@code position} on that day, if any Card is due on it. */
     OptionalInt maxPosition(LocalDate dueOn);
 

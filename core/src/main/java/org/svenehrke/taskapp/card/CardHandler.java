@@ -76,6 +76,30 @@ public class CardHandler {
         }
     }
 
+    /**
+     * The One-off Task the edit modal opens with.
+     *
+     * @throws RejectedException for an unknown id or an Occurrence (its title and notes belong to its Recurring Task)
+     */
+    public Card oneOff(long id) {
+        var card = existing(id);
+        if (card.recurringTaskId() != null) throw new RejectedException("A recurring task's occurrence cannot be edited here.");
+        return card;
+    }
+
+    /**
+     * The edit modal's save (spec §3.2): a new title and notes ({@code notes} may be null). A changed {@code dueOn}
+     * goes through {@link #move} to the bottom of that day, in the same transaction, so a rejected Move saves nothing.
+     *
+     * @throws RejectedException for an unknown id, an Occurrence, or a rejected Move (Done Card, past day)
+     */
+    @Transactional
+    public void editOneOff(long id, String title, String notes, LocalDate dueOn) {
+        var card = oneOff(id);
+        if (!dueOn.equals(card.dueOn())) move(id, dueOn.toString(), null);
+        cards.setTitleAndNotes(id, title, notes);
+    }
+
     private Card existing(long id) {
         return cards.find(id).orElseThrow(() -> new RejectedException("That task does not exist (any more)."));
     }

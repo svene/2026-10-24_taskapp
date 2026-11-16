@@ -207,4 +207,60 @@ class CardHandlerTest {
             .isInstanceOf(RejectedException.class).hasMessage("A task can only be moved to a day or to Future.");
         assertThat(cards.all()).extracting(Card::dueOn, Card::position).containsExactly(tuple(MON, 0), tuple(MON, 1));
     }
+
+    @Test
+    void edit_changes_title_and_notes_and_keeps_day_and_position() {
+        cards.insertOneOff("Water plants", "the big ones", TUE, 2);
+
+        handler.editOneOff(1, "Water the plants", null, TUE);
+
+        assertThat(cards.all()).extracting(Card::title, Card::notes, Card::dueOn, Card::originalDueOn, Card::position)
+            .containsExactly(tuple("Water the plants", null, TUE, TUE, 2));
+    }
+
+    @Test
+    void edit_with_a_new_due_date_moves_the_card_to_the_bottom_of_that_day() {
+        cards.insertOneOff("already there", null, TUE, 0);
+        cards.insertOneOff("Water the plants", null, MON, 0);
+
+        handler.editOneOff(2, "Water the plants", null, TUE);
+
+        assertThat(cards.all()).extracting(Card::title, Card::dueOn, Card::originalDueOn, Card::position).containsExactly(
+            tuple("already there", TUE, TUE, 0),
+            tuple("Water the plants", TUE, MON, 1));
+    }
+
+    @Test
+    void edit_rejects_an_occurrence_and_an_unknown_id() {
+        cards.insertOccurrence(7, MON, 0);
+
+        assertThatThrownBy(() -> handler.editOneOff(1, "title", null, MON))
+            .isInstanceOf(RejectedException.class).hasMessage("A recurring task's occurrence cannot be edited here.");
+        assertThatThrownBy(() -> handler.oneOff(1)).isInstanceOf(RejectedException.class);
+        assertThatThrownBy(() -> handler.editOneOff(42, "title", null, MON))
+            .isInstanceOf(RejectedException.class).hasMessage("That task does not exist (any more).");
+        assertThat(cards.all()).extracting(Card::title).containsExactly((String) null);
+    }
+
+    @Test
+    void edit_whose_move_is_rejected_does_not_change_the_title() {
+        cards.insertOneOff("Water the plants", null, MON, 0);
+        handler.tick(1);
+
+        assertThatThrownBy(() -> handler.editOneOff(1, "renamed", null, TUE))
+            .isInstanceOf(RejectedException.class).hasMessage("A done task cannot be moved.");
+        assertThatThrownBy(() -> handler.editOneOff(1, "renamed", null, MON.minusDays(1)))
+            .isInstanceOf(RejectedException.class);
+        assertThat(cards.all()).extracting(Card::title, Card::dueOn).containsExactly(tuple("Water the plants", MON));
+    }
+
+    @Test
+    void edit_of_a_done_card_keeping_its_day_changes_the_title() {
+        cards.insertOneOff("Water plants", null, MON, 0);
+        handler.tick(1);
+
+        handler.editOneOff(1, "Water the plants", null, MON);
+
+        assertThat(cards.all()).extracting(Card::title, Card::done).containsExactly(tuple("Water the plants", true));
+    }
 }

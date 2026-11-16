@@ -1,5 +1,5 @@
 import {html} from "hono/html";
-import type {BoardVM, CardVM, DayColumnVM, FutureVM, MovesVM, NewCardVM} from "../html/generated/vm-types";
+import type {BoardVM, CardVM, DayColumnVM, EditCardVM, FutureVM, MovesVM, NewCardVM} from "../html/generated/vm-types";
 import type {HtmlResult} from "../html/route-types";
 
 // Two rows of 7 day Columns, with Future as a sidebar spanning both rows (spec §3.1).
@@ -14,6 +14,7 @@ export const BoardPage = (vm: BoardVM): HtmlResult => html`
 		</div>
 		${FutureColumn(vm.future)}
 		${vm.newCard ? NewCardModal(vm.newCard) : ""}
+		${vm.editCard ? EditCardModal(vm.editCard) : ""}
 	</div>
 `;
 
@@ -69,7 +70,8 @@ const FutureColumn = (f: FutureVM): HtmlResult => html`
 
 // Compact: the Tick checkbox, the title and markers; notes are shown in the modal. Cards in Future and in the
 // Overdue box also show their date, Overdue ones with ⚠; a moved Card shows ⇢ and its original due date.
-// Ticking posts to tick or untick, the card buttons (on hover or focus) to move; each is answered with the Board.
+// Ticking posts to tick or untick, the card buttons (on hover or focus) to move or open the Edit modal (One-off
+// Tasks only); each is answered with the Board.
 const Card = (c: CardVM): HtmlResult => html`
 	<div class="tcard ${c.done ? "is-done" : ""} ${c.overdue ? "is-overdue" : ""}" id="${c.id}">
 		<input type="hidden" name="taskId" value="${c.taskId}">
@@ -79,17 +81,24 @@ const Card = (c: CardVM): HtmlResult => html`
 		${c.dateLabel ? html`<span class="tcard-date">${c.overdue ? "⚠ " : ""}${c.dateLabel}</span>` : ""}
 		<span class="tcard-title">${c.title}</span>
 		${c.originalLabel ? html`<span class="tcard-original" title="Original due date ${c.originalLabel}">⇢ ${c.originalLabel}</span>` : ""}
-		${c.moves ? CardButtons(c.taskId, c.title, c.moves) : ""}
+		${c.moves || c.editable ? CardButtons(c) : ""}
 	</div>
 `;
 
-// The non-drag fallback (spec §3.2): absolute dates from the server, posted as the Move's target.
-const CardButtons = (taskId: number, title: string, m: MovesVM): HtmlResult => html`
+// The Move buttons are the non-drag fallback (spec §3.2): absolute dates from the server, posted as the Move's
+// target. A Done Card has no Move buttons, but a Done One-off Task can still be edited.
+const CardButtons = (c: CardVM): HtmlResult => html`
 	<span class="tcard-actions">
-		${m.toToday ? MoveButton(taskId, m.toToday, "→Today", `Move ${title} to Today`, "today") : ""}
-		${MoveButton(taskId, m.plusDay, "+1d", `Move ${title} one day later`, "day")}
-		${MoveButton(taskId, m.plusWeek, "+1w", `Move ${title} one week later`, "week")}
+		${c.moves ? MoveButtons(c.taskId, c.title, c.moves) : ""}
+		${c.editable ? html`<button type="button" class="tcard-move" id="edit-${c.taskId}" title="Edit ${c.title}"
+			aria-label="Edit ${c.title}" hx-get="/cards/${c.taskId}/edit">✎</button>` : ""}
 	</span>
+`;
+
+const MoveButtons = (taskId: number, title: string, m: MovesVM): HtmlResult => html`
+	${m.toToday ? MoveButton(taskId, m.toToday, "→Today", `Move ${title} to Today`, "today") : ""}
+	${MoveButton(taskId, m.plusDay, "+1d", `Move ${title} one day later`, "day")}
+	${MoveButton(taskId, m.plusWeek, "+1w", `Move ${title} one week later`, "week")}
 `;
 
 const MoveButton = (taskId: number, target: string, label: string, title: string, kind: string): HtmlResult => html`
@@ -99,36 +108,54 @@ const MoveButton = (taskId: number, target: string, label: string, title: string
 
 const closeModal = "this.closest('.modal').remove()";
 
-// The New Task modal (One-off only in v1 so far). It closes client-side: background, ×, Cancel or Escape.
-const NewCardModal = (f: NewCardVM): HtmlResult => html`
-	<div class="modal is-active" id="new-card" onkeydown="if (event.key === 'Escape') ${closeModal}">
+// The New Task modal (One-off only in v1 so far).
+const NewCardModal = (f: NewCardVM): HtmlResult => TaskModal({
+	id: "new-card", heading: "New task", action: "/cards", submit: "Create",
+	title: f.title, notes: f.notes, dueOn: f.dueOn, minDueOn: undefined, errors: f.errors,
+});
+
+// The Edit modal of a One-off Task (spec §3.2). A changed due date is a Move to the bottom of that day; the date
+// picker starts at today (or the Overdue Card's own day, so it can keep it).
+const EditCardModal = (f: EditCardVM): HtmlResult => TaskModal({
+	id: "edit-card", heading: "Edit task", action: `/cards/${f.id}`, submit: "Save",
+	title: f.title, notes: f.notes, dueOn: f.dueOn, minDueOn: f.minDueOn, errors: f.errors,
+});
+
+type TaskForm = {
+	id: string; heading: string; action: string; submit: string;
+	title: string; notes: string; dueOn: string; minDueOn: string | undefined; errors: Record<string, string>;
+};
+
+// One task form in a modal. It closes client-side: background, ×, Cancel or Escape.
+const TaskModal = (f: TaskForm): HtmlResult => html`
+	<div class="modal is-active" id="${f.id}" onkeydown="if (event.key === 'Escape') ${closeModal}">
 		<div class="modal-background" onclick="${closeModal}"></div>
-		<form class="modal-card" hx-post="/cards">
+		<form class="modal-card" hx-post="${f.action}">
 			<header class="modal-card-head">
-				<p class="modal-card-title">New task</p>
+				<p class="modal-card-title">${f.heading}</p>
 				<button type="button" class="delete" aria-label="close" onclick="${closeModal}"></button>
 			</header>
 			<section class="modal-card-body">
-				${Field("Title", "title", f.errors["title"], html`
-					<input class="input ${f.errors["title"] ? "is-danger" : ""}" id="new-card-title" name="title"
+				${Field(f.id, "Title", "title", f.errors["title"], html`
+					<input class="input ${f.errors["title"] ? "is-danger" : ""}" id="${f.id}-title" name="title"
 						value="${f.title}" autocomplete="off" autofocus>`)}
-				${Field("Notes", "notes", undefined, html`
-					<textarea class="textarea" id="new-card-notes" name="notes" rows="3">${f.notes}</textarea>`)}
-				${Field("Due", "dueOn", f.errors["dueOn"], html`
-					<input class="input ${f.errors["dueOn"] ? "is-danger" : ""}" id="new-card-dueOn" name="dueOn" type="date"
-						value="${f.dueOn}" required>`)}
+				${Field(f.id, "Notes", "notes", undefined, html`
+					<textarea class="textarea" id="${f.id}-notes" name="notes" rows="3">${f.notes}</textarea>`)}
+				${Field(f.id, "Due", "dueOn", f.errors["dueOn"], html`
+					<input class="input ${f.errors["dueOn"] ? "is-danger" : ""}" id="${f.id}-dueOn" name="dueOn" type="date"
+						value="${f.dueOn}" ${f.minDueOn ? html`min="${f.minDueOn}"` : ""} required>`)}
 			</section>
 			<footer class="modal-card-foot buttons">
-				<button type="submit" class="button is-link">Create</button>
+				<button type="submit" class="button is-link">${f.submit}</button>
 				<button type="button" class="button" onclick="${closeModal}">Cancel</button>
 			</footer>
 		</form>
 	</div>
 `;
 
-const Field = (label: string, name: string, error: string | undefined, control: HtmlResult): HtmlResult => html`
+const Field = (form: string, label: string, name: string, error: string | undefined, control: HtmlResult): HtmlResult => html`
 	<div class="field">
-		<label class="label" for="new-card-${name}">${label}</label>
+		<label class="label" for="${form}-${name}">${label}</label>
 		<div class="control">${control}</div>
 		${error ? html`<p class="help is-danger">${error}</p>` : ""}
 	</div>

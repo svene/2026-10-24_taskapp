@@ -41,6 +41,11 @@ class CardService implements CardRepositorySPI {
     }
 
     @Override
+    public void setTitleAndNotes(long id, String title, String notes) {
+        db.update("UPDATE card SET title = ?, notes = ? WHERE id = ?", title, notes, id);
+    }
+
+    @Override
     public OptionalInt maxPosition(LocalDate dueOn) {
         return db.queryOne("SELECT max(position) FROM card WHERE due_on = ?", rs -> {
                 var max = rs.getInt(1);

@@ -6,6 +6,7 @@ import jakarta.transaction.Transactional;
 import java.time.Clock;
 import java.time.LocalDate;
 import org.svenehrke.taskapp.card.CardRepositorySPI;
+import org.svenehrke.taskapp.recurring.OccurrenceProducer;
 
 /** Inbound port: the Board as of today. */
 @ApplicationScoped
@@ -13,16 +14,20 @@ public class BoardHandler {
 
     private final Clock clock;
     private final CardRepositorySPI cards;
+    private final OccurrenceProducer occurrences;
 
     @Inject
-    BoardHandler(Clock clock, CardRepositorySPI cards) {
+    BoardHandler(Clock clock, CardRepositorySPI cards, OccurrenceProducer occurrences) {
         this.clock = clock;
         this.cards = cards;
+        this.occurrences = occurrences;
     }
 
+    /** Catches up the Recurring Tasks' Occurrences first (spec §2.3), so the Board read sees them. */
     @Transactional
     public Board board() {
         var today = LocalDate.now(clock);
+        occurrences.catchUp(today);
         var futureFrom = Board.futureFrom(today);
         return Board.of(today, cards.overdueBox(today), cards.dueBetween(today, futureFrom.minusDays(1)), cards.openDueFrom(futureFrom));
     }

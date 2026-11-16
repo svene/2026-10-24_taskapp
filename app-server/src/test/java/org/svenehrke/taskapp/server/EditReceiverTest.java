@@ -76,7 +76,7 @@ class EditReceiverTest {
         var json = jsonBody(save(id, "Book the flights", "aisle seat", "2026-10-27"), 200);
 
         assertThatJson(json).when(IGNORING_EXTRA_FIELDS).inPath("vm.days[2].cards").isEqualTo("""
-            [{"title": "Book the flights", "originalLabel": null, "editable": true}]
+            [{"title": "Book the flights", "originalLabel": null, "recurring": false}]
             """);
         assertThatJson(json).inPath("vm.editCard").isNull();
         assertThatJson(jsonBody(given().when().get("/cards/" + id + "/edit"), 200)).inPath("vm.editCard.notes")
@@ -131,15 +131,12 @@ class EditReceiverTest {
     }
 
     @Test
-    void an_occurrence_cannot_be_edited_here() throws SQLException {
+    void an_occurrence_is_not_saved_as_a_one_off_task() throws SQLException {
         execute("insert into recurring_task (id, title, starts_on, kind, after_amount, after_unit)"
             + " values (1, 'Water the plants', '2026-10-25', 'AFTER_DONE', 3, 'DAYS')");
         execute("insert into card (id, recurring_task_id, due_on, original_due_on, position)"
             + " values (1, 1, '2026-10-26', '2026-10-26', 0)");
 
-        assertThatJson(jsonBody(given().when().get("/board"), 200)).inPath("vm.days[1].cards[0].editable").isEqualTo(false);
-        assertThatJson(jsonBody(given().when().get("/cards/1/edit"), 409)).inPath("vm.notice")
-            .isString().isEqualTo("A recurring task's occurrence cannot be edited here.");
         assertThatJson(jsonBody(save(1, "renamed", "", "2026-10-26"), 409)).inPath("vm.notice")
             .isString().isEqualTo("A recurring task's occurrence cannot be edited here.");
     }

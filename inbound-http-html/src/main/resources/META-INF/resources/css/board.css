@@ -51,3 +51,11 @@ body { min-height: 100vh; background: var(--bulma-background); font-size: 14px; 
 .tcard-ghost { opacity: .4; background: var(--bulma-primary-light); border-style: dashed; }
 .sortable-fallback { cursor: grabbing; box-shadow: var(--bulma-shadow); }
 [data-sortable].cards { min-height: 1.5rem; }
+
+/* The New Task modal shows only the chosen kind's fields. */
+#new-card:has(input[name="repeats"][value="once"]:checked) .calendar-only,
+#new-card:has(input[name="repeats"][value="calendar"]:checked) .once-only { display: none; }
+#new-card .repeats, #new-card .weekdays { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+#new-card .every-weeks { max-width: 6rem; }
+.tcard-recurring { color: var(--bulma-text-weak, #888); font-size: 0.85em; }
+.occurrence-notes { white-space: pre-wrap; margin-bottom: 0.5rem; }

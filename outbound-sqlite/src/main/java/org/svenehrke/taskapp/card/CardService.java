@@ -10,19 +10,24 @@ import java.util.Optional;
 import java.util.OptionalInt;
 import org.svenehrke.taskapp.sqlite.Db;
 
-/** The {@code card} table. */
+/**
+ * The {@code card} table. Reads join an Occurrence's Recurring Task, so it shows that task's title and notes live
+ * (an Occurrence stores none of its own).
+ */
 @ApplicationScoped
 class CardService implements CardRepositorySPI {
 
-    private static final String COLUMNS =
-        "id, recurring_task_id, title, notes, due_on, original_due_on, position, done_on";
+    private static final String SELECT = "SELECT c.id, c.recurring_task_id,"
+        + " coalesce(c.title, r.title) AS title, coalesce(c.notes, r.notes) AS notes,"
+        + " c.due_on, c.original_due_on, c.position, c.done_on"
+        + " FROM card c LEFT JOIN recurring_task r ON r.id = c.recurring_task_id";
 
     @Inject
     Db db;
 
     @Override
     public Optional<Card> find(long id) {
-        return db.queryOne("SELECT " + COLUMNS + " FROM card WHERE id = ?", CardService::card, id);
+        return db.queryOne(SELECT + " WHERE c.id = ?", CardService::card, id);
     }
 
     @Override
@@ -32,7 +37,7 @@ class CardService implements CardRepositorySPI {
 
     @Override
     public List<Card> dueOn(LocalDate day) {
-        return db.query("SELECT " + COLUMNS + " FROM card WHERE due_on = ? ORDER BY position, id", CardService::card, day);
+        return db.query(SELECT + " WHERE c.due_on = ? ORDER BY c.position, c.id", CardService::card, day);
     }
 
     @Override
@@ -62,19 +67,19 @@ class CardService implements CardRepositorySPI {
 
     @Override
     public List<Card> dueBetween(LocalDate from, LocalDate through) {
-        return db.query("SELECT " + COLUMNS + " FROM card WHERE due_on BETWEEN ? AND ? ORDER BY due_on, position, id",
+        return db.query(SELECT + " WHERE c.due_on BETWEEN ? AND ? ORDER BY c.due_on, c.position, c.id",
             CardService::card, from, through);
     }
 
     @Override
     public List<Card> overdueBox(LocalDate today) {
-        return db.query("SELECT " + COLUMNS + " FROM card WHERE due_on < ? AND (done_on IS NULL OR done_on >= ?)"
-            + " ORDER BY due_on, position, id", CardService::card, today, today);
+        return db.query(SELECT + " WHERE c.due_on < ? AND (c.done_on IS NULL OR c.done_on >= ?)"
+            + " ORDER BY c.due_on, c.position, c.id", CardService::card, today, today);
     }
 
     @Override
     public List<Card> openDueFrom(LocalDate from) {
-        return db.query("SELECT " + COLUMNS + " FROM card WHERE done_on IS NULL AND due_on >= ? ORDER BY due_on, position, id",
+        return db.query(SELECT + " WHERE c.done_on IS NULL AND c.due_on >= ? ORDER BY c.due_on, c.position, c.id",
             CardService::card, from);
     }
 

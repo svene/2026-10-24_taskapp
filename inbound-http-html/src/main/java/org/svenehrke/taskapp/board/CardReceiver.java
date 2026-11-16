@@ -14,12 +14,18 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.Response.Status;
 import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import org.svenehrke.taskapp.board.BoardVM.EditCardVM;
+import org.svenehrke.taskapp.board.BoardVM.EditOccurrenceVM;
 import org.svenehrke.taskapp.board.BoardVM.NewCardVM;
 import org.svenehrke.taskapp.board.BoardVM.QuickAddError;
 import org.svenehrke.taskapp.card.CardHandler;
 import org.svenehrke.taskapp.card.ParsedOneOffTask;
+import org.svenehrke.taskapp.recurring.ParsedRecurringTask;
+import org.svenehrke.taskapp.recurring.RecurringTaskHandler;
 import org.svenehrke.taskapp.html.UiResponse;
 import org.svenehrke.taskapp.html.UiRoute;
 
@@ -38,25 +44,49 @@ public class CardReceiver {
     @Inject
     BoardHandler boardHandler;
 
+    @Inject
+    RecurringTaskHandler recurringTaskHandler;
+
     /** The Board with the New Task modal open, its due date preset (the Column's day). */
     @GET
     @Path("new")
     public UiResponse newCard(@QueryParam("dueOn") String dueOn) {
         var board = boardHandler.board();
         var preset = Objects.requireNonNullElse(dueOn, board.days().getFirst().date().toString());
-        return UiResponse.of(UiRoute.BoardPage, BoardVM.of(board, NewCardVM.empty(preset), null));
+        return UiResponse.of(UiRoute.BoardPage, BoardVM.of(board, NewCardVM.empty(preset, today(board)), null));
     }
 
-    /** The New Task modal's submit. Rejected input re-opens the modal with its messages (400). */
+    /**
+     * The New Task modal's submit: a One-off Task, or with {@code repeats=calendar} a Recurring Task (its Occurrences
+     * appear with the Board read that follows). Rejected input re-opens the modal with its messages (400).
+     */
     @POST
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
-    public Response create(@FormParam("title") String title, @FormParam("notes") String notes,
-        @FormParam("dueOn") String dueOn) {
-        return switch (ParsedOneOffTask.parse(title, notes, dueOn)) {
-            case ParsedOneOffTask.Valid task -> created(task);
-            case ParsedOneOffTask.Invalid invalid -> UiResponse.response(Status.BAD_REQUEST, UiRoute.BoardPage,
-                BoardVM.of(boardHandler.board(), new NewCardVM(orEmpty(title), orEmpty(notes), orEmpty(dueOn), invalid.errors()), null));
-        };
+    public Response create(@FormParam("repeats") String repeats, @FormParam("title") String title,
+        @FormParam("notes") String notes, @FormParam("dueOn") String dueOn, @FormParam("kind") String kind,
+        @FormParam("weekdays") List<String> weekdays, @FormParam("everyWeeks") String everyWeeks,
+        @FormParam("startsOn") String startsOn) {
+        Map<String, String> errors;
+        if (NewCardVM.CALENDAR.equals(repeats)) {
+            switch (ParsedRecurringTask.parse(title, notes, kind, weekdays, everyWeeks, startsOn)) {
+                case ParsedRecurringTask.Valid task -> {
+                    recurringTaskHandler.create(task.title(), task.notes(), task.schedule());
+                    return boardResponse();
+                }
+                case ParsedRecurringTask.Invalid invalid -> errors = invalid.errors();
+            }
+        } else {
+            switch (ParsedOneOffTask.parse(title, notes, dueOn)) {
+                case ParsedOneOffTask.Valid task -> {
+                    return created(task);
+                }
+                case ParsedOneOffTask.Invalid invalid -> errors = invalid.errors();
+            }
+        }
+        var form = new NewCardVM(NewCardVM.CALENDAR.equals(repeats) ? NewCardVM.CALENDAR : NewCardVM.ONCE, orEmpty(title),
+            orEmpty(notes), orEmpty(dueOn), orEmpty(kind), weekdayNumbers(weekdays), orEmpty(everyWeeks), orEmpty(startsOn),
+            errors);
+        return UiResponse.response(Status.BAD_REQUEST, UiRoute.BoardPage, BoardVM.of(boardHandler.board(), form, null));
     }
 
     /** Quick-add in a day Column: a title only, due that day. Rejected input shows its message in that Column (400). */
@@ -99,12 +129,52 @@ public class CardReceiver {
         return UiResponse.of(UiRoute.BoardPage, BoardVM.of(boardHandler.board()));
     }
 
-    /** The Board with the Edit modal of a One-off Task open. An Occurrence or unknown id is rejected (409). */
+    /**
+     * The Board with the Edit modal open: a One-off Task's, or an Occurrence's (only its due date and Done change).
+     * An unknown id is rejected (409).
+     */
     @GET
     @Path("{id}/edit")
     public UiResponse edit(@PathParam("id") long id) {
         var board = boardHandler.board();
-        return UiResponse.of(UiRoute.BoardPage, BoardVM.of(board, EditCardVM.of(cardHandler.oneOff(id), today(board))));
+        var card = cardHandler.card(id);
+        if (card.recurringTaskId() == null) {
+            return UiResponse.of(UiRoute.BoardPage, BoardVM.of(board, EditCardVM.of(card, today(board))));
+        }
+        var task = recurringTaskHandler.recurringTask(card.recurringTaskId());
+        return UiResponse.of(UiRoute.BoardPage, BoardVM.of(board, EditOccurrenceVM.of(card, task, today(board))));
+    }
+
+    /**
+     * The Occurrence Edit modal's save: a changed due date is a Move to the bottom of that day, {@code done} ticks or
+     * unticks. An invalid date re-opens the modal with its message (400); a rejected Move answers 409 and saves nothing.
+     */
+    @POST
+    @Path("{id}/occurrence")
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    public Response saveOccurrence(@PathParam("id") long id, @FormParam("dueOn") String dueOn,
+        @FormParam("done") String done) {
+        var ticked = done != null;
+        String error = null;
+        LocalDate date = null;
+        if (dueOn == null || dueOn.isBlank()) {
+            error = "Due date is required.";
+        } else {
+            try {
+                date = LocalDate.parse(dueOn.strip());
+            } catch (DateTimeParseException e) {
+                error = "Due date must be a date (YYYY-MM-DD).";
+            }
+        }
+        if (error == null) {
+            cardHandler.editOccurrence(id, date, ticked);
+            return boardResponse();
+        }
+        var board = boardHandler.board();
+        var card = cardHandler.card(id);
+        var task = recurringTaskHandler.recurringTask(card.recurringTaskId());
+        var form = EditOccurrenceVM.rejected(card, task, today(board), orEmpty(dueOn), ticked, Map.of("dueOn", error));
+        return UiResponse.response(Status.BAD_REQUEST, UiRoute.BoardPage, BoardVM.of(board, form));
     }
 
     /**
@@ -143,12 +213,23 @@ public class CardReceiver {
         }
     }
 
+    /** The ISO weekday numbers among {@code values}, for re-rendering the ticked boxes. */
+    private static List<Integer> weekdayNumbers(List<String> values) {
+        return values == null ? List.of() : values.stream()
+            .map(v -> { try { return Integer.valueOf(v.strip()); } catch (NumberFormatException e) { return null; } })
+            .filter(n -> n != null && n >= 1 && n <= 7).distinct().sorted().toList();
+    }
+
     private static String orEmpty(String value) {
         return Objects.requireNonNullElse(value, "");
     }
 
     private Response created(ParsedOneOffTask.Valid task) {
         cardHandler.createOneOff(task.title(), task.notes(), task.dueOn());
+        return boardResponse();
+    }
+
+    private Response boardResponse() {
         return UiResponse.response(Status.OK, UiRoute.BoardPage, BoardVM.of(boardHandler.board()));
     }
 }

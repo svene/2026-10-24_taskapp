@@ -18,3 +18,12 @@ body { min-height: 100vh; background: var(--bulma-background); font-size: 14px; 
 .column-head .weekday { font-weight: 600; }
 .column-head .day-month { color: var(--bulma-text-weak); font-size: 12px; }
 .board-column .cards { flex: 1; min-height: 2.2rem; display: flex; flex-direction: column; gap: .25rem; }
+
+.column-head .add-card { margin-left: auto; height: 1.5em; padding: 0 .4em; text-decoration: none; }
+.tcard { padding: .25rem .4rem; background: var(--bulma-scheme-main); border: 1px solid var(--bulma-border);
+	border-radius: var(--bulma-radius-small); overflow-wrap: anywhere; }
+.tcard-date { margin-right: .3rem; color: var(--bulma-text-weak); font-size: 12px; }
+.board-column .quick { margin-top: .3rem; }
+.board-column .quick .input:not(:focus):not(.is-danger) { border-color: transparent; box-shadow: none; background: transparent; }
+.more summary { cursor: pointer; color: var(--bulma-link); font-size: 12px; padding: .1rem .15rem; }
+.more .cards { margin-top: .25rem; }

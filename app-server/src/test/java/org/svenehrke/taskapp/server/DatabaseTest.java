@@ -18,7 +18,8 @@ class DatabaseTest {
     @Test
     void schema_is_migrated_to_v1_on_startup() throws SQLException {
         assertThat(queryString("select max(version) from flyway_schema_history where success = 1")).isEqualTo("1");
-        assertThat(queryString("select count(*) from card")).isEqualTo("0");
+        // the table exists; other tests may have added rows to the shared test database
+        assertThat(queryString("select count(*) from card where id < 0")).isEqualTo("0");
     }
 
     @Test

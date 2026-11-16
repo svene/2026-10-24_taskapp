@@ -33,3 +33,21 @@ the migration.
 
 `foreign_keys`, `journal_mode=wal` and `busy_timeout` are query parameters of the JDBC URL. sqlite-jdbc runs them
 as PRAGMAs on every connection it opens. The Agroal pool has one connection (SQLite has one writer at a time).
+
+### Card-creating Receivers live in `board`
+
+`CardReceiver` (create, quick-add, open the New Task modal) is in package `board`, not `card`. Every response is
+the whole Board, so it calls `BoardHandler`, and `card` must not depend on `board` (`board` → `card` already; the
+cycle check in `ArchitectureTest` would fail).
+
+### Future carries its Cards, not just a count
+
+Spec §4.2 has Future show the 5 nearest open Cards "plus a count". `Board.Future` carries the rest as a list
+(`more`) instead, so "+N more" expands in the browser (a `<details>`) without another request.
+
+### Board updates morph `#app`
+
+Requests from inside the Board answer with the whole Board, swapped into `#app` with `innerMorph`
+(`hx-target:inherited` / `hx-swap:inherited` on `#board`). Morph keeps focus and scroll, but leaves the value of
+the focused input alone, so a quick-add form resets itself after a successful create (`hx-on::after:swap`).
+The New Task modal is Board state (`BoardVM.newCard`) and closes client-side by removing itself.

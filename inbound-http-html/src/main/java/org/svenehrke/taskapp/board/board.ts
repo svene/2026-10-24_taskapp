@@ -165,7 +165,7 @@ const NewCardModal = (f: NewCardVM): HtmlResult => Modal("new-card", "New task",
 		<div class="field">
 			<span class="label">Next dates</span>
 			<div id="new-card-preview" hx-get="/schedules/preview" hx-include="closest form"
-				hx-trigger="change from:closest form" hx-target="this" hx-swap="innerHTML">${SchedulePreview(f.preview)}</div>
+				hx-trigger="change from:#new-card" hx-target="this" hx-swap="innerHTML">${SchedulePreview(f.preview)}</div>
 		</div>
 	</div>
 `);

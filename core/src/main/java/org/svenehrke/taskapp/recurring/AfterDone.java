@@ -18,12 +18,13 @@ public record AfterDone(int amount, Unit unit, LocalDate startsOn) implements Sc
     }
 
     /**
-     * The original due date of the Occurrence that follows one due on {@code originalDueOn} and ticked off on
-     * {@code doneOn}: {@code doneOn} plus N, but at least the day after {@code originalDueOn}, so ticking off far
-     * ahead of time still moves the chain forward.
+     * The original due date of the Occurrence that follows one due on {@code originalDueOn}, moved to {@code dueOn} and
+     * ticked off on {@code doneOn}: {@code doneOn} plus N, but at least the day after the later of the two due dates, so
+     * ticking off ahead of time still moves the chain forward and never puts the successor next to the Done Card.
      */
-    public LocalDate next(LocalDate originalDueOn, LocalDate doneOn) {
+    public LocalDate next(LocalDate originalDueOn, LocalDate dueOn, LocalDate doneOn) {
         var next = unit == Unit.DAYS ? doneOn.plusDays(amount) : doneOn.plusWeeks(amount);
-        return next.isAfter(originalDueOn) ? next : originalDueOn.plusDays(1);
+        var latestDue = dueOn.isAfter(originalDueOn) ? dueOn : originalDueOn;
+        return next.isAfter(latestDue) ? next : latestDue.plusDays(1);
     }
 }

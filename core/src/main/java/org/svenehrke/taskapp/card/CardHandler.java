@@ -129,13 +129,13 @@ public class CardHandler {
         if (card.recurringTaskId() == null) throw new RejectedException("A one-off task is edited in its own modal.");
         if (card.done() && !done) cards.setDoneOn(id, null);
         if (!dueOn.equals(card.dueOn())) move(id, dueOn.toString(), null);
-        if (done && !card.done()) markDone(card);
+        if (done && !card.done()) markDone(existing(id));
     }
 
     private void markDone(Card card) {
         var today = LocalDate.now(clock);
         cards.setDoneOn(card.id(), today);
-        if (card.recurringTaskId() != null) producer.afterDone(card.recurringTaskId(), card.originalDueOn(), today);
+        if (card.recurringTaskId() != null) producer.afterDone(card.recurringTaskId(), card.originalDueOn(), card.dueOn(), today);
     }
 
     private Card existing(long id) {

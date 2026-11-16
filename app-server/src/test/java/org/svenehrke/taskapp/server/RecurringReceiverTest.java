@@ -233,6 +233,32 @@ class RecurringReceiverTest {
             """.formatted(FILTER));
     }
 
+    /** Dragged from today to tomorrow, then ticked off today: the next one is due the day after, not next to it. */
+    @Test
+    void ticking_an_after_done_occurrence_early_after_a_move_produces_the_next_one_after_the_moved_card() {
+        long id = occurrenceOn(jsonBody(createAfterDone("1", "DAYS"), 200), 0);
+        jsonBody(given().formParam("target", "2026-10-26").when().post("/cards/" + id + "/move"), 200);
+
+        var json = jsonBody(given().when().post("/cards/" + id + "/tick"), 200);
+
+        assertThatJson(json).when(IGNORING_EXTRA_FIELDS).inPath("$.vm.days[*].cards").isEqualTo("""
+            [[], [{"title": "Change the water filter", "done": true}], [%s], [], [], [], [], [], [], [], [], [], [], []]
+            """.formatted(FILTER));
+    }
+
+    /** The same in one save of the Occurrence modal: the move happens first, so the successor follows the new date. */
+    @Test
+    void saving_an_after_done_occurrence_as_moved_and_done_produces_the_next_one_after_the_new_date() {
+        long id = occurrenceOn(jsonBody(createAfterDone("1", "DAYS"), 200), 0);
+
+        var json = jsonBody(given().formParam("dueOn", "2026-10-26").formParam("done", "on")
+            .when().post("/cards/" + id + "/occurrence"), 200);
+
+        assertThatJson(json).when(IGNORING_EXTRA_FIELDS).inPath("$.vm.days[*].cards").isEqualTo("""
+            [[], [{"title": "Change the water filter", "done": true}], [%s], [], [], [], [], [], [], [], [], [], [], []]
+            """.formatted(FILTER));
+    }
+
     @Test
     void an_after_done_task_without_a_whole_number_reopens_the_modal_with_its_message() {
         var json = jsonBody(createAfterDone("0", "WEEKS"), 400);

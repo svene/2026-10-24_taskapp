@@ -43,10 +43,10 @@ public class OccurrenceProducer {
      * Occurrence of the task has a later original due date). Unticking and ticking again therefore creates nothing,
      * and the unique original due date keeps a repeated call harmless. Anything else is left alone.
      */
-    public void afterDone(long recurringTaskId, LocalDate originalDueOn, LocalDate doneOn) {
+    public void afterDone(long recurringTaskId, LocalDate originalDueOn, LocalDate dueOn, LocalDate doneOn) {
         var task = tasks.find(recurringTaskId).orElse(null);
         if (task == null || task.stoppedOn() != null || !(task.schedule() instanceof AfterDone afterDone)) return;
         if (tasks.latestOriginalDueOn(recurringTaskId).filter(latest -> latest.isAfter(originalDueOn)).isPresent()) return;
-        tasks.insertOccurrence(recurringTaskId, afterDone.next(originalDueOn, doneOn));
+        tasks.insertOccurrence(recurringTaskId, afterDone.next(originalDueOn, dueOn, doneOn));
     }
 }

@@ -96,7 +96,7 @@ class OccurrenceProducerTest {
     void ticking_off_the_latest_occurrence_produces_the_next_n_weeks_after_the_done_date() {
         handler.create("Descale the kettle", null, new AfterDone(3, AfterDone.Unit.WEEKS, SUN_25_OCT));
 
-        producer.afterDone(1, SUN_25_OCT, date(10, 27));
+        producer.afterDone(1, SUN_25_OCT, SUN_25_OCT, date(10, 27));
 
         assertThat(tasks.occurrences()).extracting(Occurrence::originalDueOn).containsExactly(SUN_25_OCT, date(11, 17));
     }
@@ -104,9 +104,9 @@ class OccurrenceProducerTest {
     @Test
     void ticking_off_again_after_an_untick_produces_no_second_successor() {
         handler.create("Descale the kettle", null, new AfterDone(3, AfterDone.Unit.WEEKS, SUN_25_OCT));
-        producer.afterDone(1, SUN_25_OCT, date(10, 27));
+        producer.afterDone(1, SUN_25_OCT, SUN_25_OCT, date(10, 27));
 
-        producer.afterDone(1, SUN_25_OCT, date(10, 28));
+        producer.afterDone(1, SUN_25_OCT, SUN_25_OCT, date(10, 28));
 
         assertThat(tasks.occurrences()).extracting(Occurrence::originalDueOn).containsExactly(SUN_25_OCT, date(11, 17));
     }
@@ -115,9 +115,19 @@ class OccurrenceProducerTest {
     void ticking_off_late_counts_from_the_done_date() {
         handler.create("Descale the kettle", null, new AfterDone(10, AfterDone.Unit.DAYS, date(10, 15)));
 
-        producer.afterDone(1, date(10, 15), SUN_25_OCT);
+        producer.afterDone(1, date(10, 15), date(10, 15), SUN_25_OCT);
 
         assertThat(tasks.occurrences()).extracting(Occurrence::originalDueOn).containsExactly(date(10, 15), date(11, 4));
+    }
+
+    /** Moved ahead from 25 to 26 Oct and ticked off early on 25 Oct: the successor follows the moved, Done Card. */
+    @Test
+    void ticking_off_early_after_a_move_ahead_produces_the_next_one_the_day_after_the_moved_card() {
+        handler.create("Descale the kettle", null, new AfterDone(1, AfterDone.Unit.DAYS, SUN_25_OCT));
+
+        producer.afterDone(1, SUN_25_OCT, date(10, 26), SUN_25_OCT);
+
+        assertThat(tasks.occurrences()).extracting(Occurrence::originalDueOn).containsExactly(SUN_25_OCT, date(10, 27));
     }
 
     @Test
@@ -125,7 +135,7 @@ class OccurrenceProducerTest {
         handler.create("Descale the kettle", null, new AfterDone(3, AfterDone.Unit.WEEKS, SUN_25_OCT));
         tasks.stop(1, SUN_25_OCT);
 
-        producer.afterDone(1, SUN_25_OCT, SUN_25_OCT);
+        producer.afterDone(1, SUN_25_OCT, SUN_25_OCT, SUN_25_OCT);
 
         assertThat(tasks.occurrences()).containsExactly(new Occurrence(1, SUN_25_OCT));
     }
@@ -134,7 +144,7 @@ class OccurrenceProducerTest {
     void ticking_off_a_calendar_occurrence_produces_nothing_extra() {
         handler.create("Water plants", null, new Weekly(Set.of(MONDAY, THURSDAY), 1, SUN_25_OCT));
 
-        producer.afterDone(1, date(10, 26), date(10, 26));
+        producer.afterDone(1, date(10, 26), date(10, 26), date(10, 26));
 
         assertThat(tasks.occurrences()).isEmpty();
     }

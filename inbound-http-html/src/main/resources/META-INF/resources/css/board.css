@@ -45,3 +45,9 @@ body { min-height: 100vh; background: var(--bulma-background); font-size: 14px; 
 .tcard-move { border: 0; border-radius: var(--bulma-radius-small); padding: 0 .25rem; font-size: 11px; cursor: pointer;
 	background: var(--bulma-background); color: var(--bulma-text); }
 .tcard-move:hover, .tcard-move:focus { background: var(--bulma-border); }
+
+/* Drag-and-drop (board-drag.ts): open Cards grab, the dragged Card's slot shows as a ghost */
+[data-sortable] .tcard:not(.is-done) { cursor: grab; }
+.tcard-ghost { opacity: .4; background: var(--bulma-primary-light); border-style: dashed; }
+.sortable-fallback { cursor: grabbing; box-shadow: var(--bulma-shadow); }
+[data-sortable].cards { min-height: 1.5rem; }

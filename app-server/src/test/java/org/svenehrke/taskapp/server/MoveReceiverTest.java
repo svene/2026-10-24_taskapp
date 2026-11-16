@@ -17,8 +17,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * Moving Cards with the card buttons: each posts the absolute date the Board gave it. The Clock is on Sun 25 Oct 2026
- * (day Column 0 is Today, Column 7 is Sun 1 Nov).
+ * Moving Cards with the card buttons (each posts the absolute date the Board gave it) and by drag-and-drop (a drop
+ * posts the list's date or {@code future}, plus the Card now below it as {@code before}). The Clock is on
+ * Sun 25 Oct 2026 (day Column 0 is Today, Column 7 is Sun 1 Nov).
  */
 @QuarkusTest
 class MoveReceiverTest {
@@ -139,6 +140,105 @@ class MoveReceiverTest {
         assertThatJson(json).inPath("$.vm.future.nearest[*].title").isEqualTo("""
             ["Water the plants", "already there"]
             """);
+    }
+
+    @Test
+    void a_drop_at_the_top_of_another_day_goes_before_its_first_card() {
+        quickAdd("Buy stamps", "2026-10-27");
+        var board = quickAdd("Water the plants", "2026-10-25");
+
+        var json = jsonBody(drop(board.getLong("vm.days[0].cards[0].taskId"), "2026-10-27", board.getLong("vm.days[2].cards[0].taskId")), 200);
+
+        assertThatJson(json).inPath("$.vm.days[2].cards[*].title").isEqualTo("""
+            ["Water the plants", "Buy stamps"]
+            """);
+    }
+
+    @Test
+    void a_drop_without_a_card_below_goes_to_the_bottom() {
+        quickAdd("Buy stamps", "2026-10-27");
+        var board = quickAdd("Water the plants", "2026-10-25");
+
+        var json = jsonBody(move(board.getLong("vm.days[0].cards[0].taskId"), "2026-10-27"), 200);
+
+        assertThatJson(json).inPath("$.vm.days[2].cards[*].title").isEqualTo("""
+            ["Buy stamps", "Water the plants"]
+            """);
+    }
+
+    @Test
+    void a_drop_within_a_day_reorders_it_and_keeps_the_due_date() {
+        quickAdd("A", "2026-10-26");
+        quickAdd("B", "2026-10-26");
+        var board = quickAdd("C", "2026-10-26");
+
+        var json = jsonBody(drop(board.getLong("vm.days[1].cards[2].taskId"), "2026-10-26", board.getLong("vm.days[1].cards[0].taskId")), 200);
+
+        assertThatJson(json).when(IGNORING_EXTRA_FIELDS).inPath("vm.days[1].cards").isEqualTo("""
+            [{"title": "C", "originalLabel": null}, {"title": "A"}, {"title": "B"}]
+            """);
+    }
+
+    @Test
+    void an_open_card_can_be_dropped_above_a_done_card() {
+        long done = quickAdd("Water the plants", "2026-10-25").getLong("vm.days[0].cards[0].taskId");
+        jsonBody(given().when().post("/cards/" + done + "/tick"), 200);
+        var board = quickAdd("Buy stamps", "2026-10-26");
+
+        var json = jsonBody(drop(board.getLong("vm.days[1].cards[0].taskId"), "2026-10-25", done), 200);
+
+        assertThatJson(json).when(IGNORING_EXTRA_FIELDS).inPath("vm.days[0].cards").isEqualTo("""
+            [{"title": "Buy stamps", "done": false}, {"title": "Water the plants", "done": true}]
+            """);
+    }
+
+    @Test
+    void a_done_card_dropped_elsewhere_is_rejected_with_a_notice() {
+        long done = quickAdd("Water the plants", "2026-10-25").getLong("vm.days[0].cards[0].taskId");
+        jsonBody(given().when().post("/cards/" + done + "/tick"), 200);
+
+        var json = jsonBody(move(done, "2026-10-26"), 409);
+
+        assertThatJson(json).inPath("vm.notice").isString().isNotEmpty();
+        assertThatJson(json).inPath("$.vm.days[0].cards[*].title").isEqualTo("""
+            ["Water the plants"]
+            """);
+    }
+
+    @Test
+    void a_card_dragged_out_of_the_overdue_box_lands_where_it_was_dropped() {
+        clock.setToday(LocalDate.of(2026, 10, 20));
+        quickAdd("Pay the bill", "2026-10-20");
+        clock.reset();
+        var board = quickAdd("Water the plants", "2026-10-25");
+
+        var json = jsonBody(drop(board.getLong("vm.days[0].overdue[0].taskId"), "2026-10-25", board.getLong("vm.days[0].cards[0].taskId")), 200);
+
+        assertThatJson(json).inPath("vm.days[0].overdue").isArray().isEmpty();
+        assertThatJson(json).when(IGNORING_EXTRA_FIELDS).inPath("vm.days[0].cards").isEqualTo("""
+            [{"title": "Pay the bill", "overdue": false, "originalLabel": "20 Oct"}, {"title": "Water the plants"}]
+            """);
+    }
+
+    @Test
+    void a_drop_on_future_goes_to_the_bottom_of_the_day_after_the_span() {
+        quickAdd("already there", "2026-11-08");
+        quickAdd("later", "2026-11-09");
+        var board = quickAdd("Water the plants", "2026-10-25");
+
+        var json = jsonBody(move(board.getLong("vm.days[0].cards[0].taskId"), "future"), 200);
+
+        assertThatJson(json).when(IGNORING_EXTRA_FIELDS).inPath("vm.future.nearest").isEqualTo("""
+            [
+              {"title": "already there",    "dateLabel": "8 Nov"},
+              {"title": "Water the plants", "dateLabel": "8 Nov"},
+              {"title": "later",            "dateLabel": "9 Nov"}
+            ]
+            """);
+    }
+
+    private static Response drop(long id, String target, long before) {
+        return given().formParam("target", target).formParam("before", before).when().post("/cards/" + id + "/move");
     }
 
     private static Response move(long id, String target) {

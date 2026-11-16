@@ -37,8 +37,8 @@ const DayColumn = (d: DayColumnVM): HtmlResult => html`
 			<span class="day-month">${d.dayMonth}</span>
 			${AddButton(d.date)}
 		</header>
-		${d.overdue.length > 0 ? html`<div class="overdue-box" id="overdue" aria-label="Overdue">${d.overdue.map(Card)}</div>` : ""}
-		<div class="cards">${d.cards.map(Card)}</div>
+		${d.overdue.length > 0 ? html`<div class="overdue-box" id="overdue" aria-label="Overdue" data-sortable data-sort="false">${d.overdue.map(Card)}</div>` : ""}
+		<div class="cards" id="cards-${d.date}" data-sortable data-drop="${d.date}">${d.cards.map(Card)}</div>
 		<form class="quick" id="quick-${d.date}" hx-post="/cards/quick-add"
 			hx-on::after:swap="if (ctx.response?.status === 200) this.reset()">
 			<input type="hidden" name="dueOn" value="${d.date}">
@@ -56,12 +56,12 @@ const FutureColumn = (f: FutureVM): HtmlResult => html`
 			<span class="day-month">${f.fromLabel}</span>
 			${AddButton(f.from)}
 		</header>
-		<div class="cards">
+		<div class="cards" id="cards-future" data-sortable data-drop="future" data-sort="false">
 			${f.nearest.map(Card)}
 			${f.more.length > 0 ? html`
 				<details class="more" id="future-more">
 					<summary>+${f.more.length} more</summary>
-					<div class="cards">${f.more.map(Card)}</div>
+					<div class="cards" id="cards-future-more" data-sortable data-drop="future" data-sort="false">${f.more.map(Card)}</div>
 				</details>` : ""}
 		</div>
 	</section>

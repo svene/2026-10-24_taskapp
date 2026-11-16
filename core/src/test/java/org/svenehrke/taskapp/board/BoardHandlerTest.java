@@ -5,10 +5,12 @@ import static org.assertj.core.api.Assertions.tuple;
 
 import java.time.Clock;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import org.junit.jupiter.api.Test;
 import org.svenehrke.taskapp.board.Board.BoardCard;
 import org.svenehrke.taskapp.card.InMemoryCardRepository;
+import org.svenehrke.taskapp.card.MutableTestClock;
 
 class BoardHandlerTest {
 
@@ -82,5 +84,84 @@ class BoardHandlerTest {
             assertThat(card.done()).isFalse();
             assertThat(card.recurringTaskId()).isNull();
         });
+    }
+
+    @Test
+    void open_cards_due_before_today_are_overdue_in_the_box_oldest_first_then_by_position() {
+        cards.insertOneOff("21 Oct b", null, LocalDate.of(2026, 10, 21), 1);
+        cards.insertOneOff("24 Oct", null, LocalDate.of(2026, 10, 24), 0);
+        cards.insertOneOff("20 Oct", null, LocalDate.of(2026, 10, 20), 5);
+        cards.insertOneOff("21 Oct a", null, LocalDate.of(2026, 10, 21), 0);
+        cards.insertOneOff("today", null, SUNDAY, 0);
+
+        var board = handler.board();
+
+        assertThat(board.overdue()).extracting(BoardCard::title, BoardCard::overdue).containsExactly(
+            tuple("20 Oct", true),
+            tuple("21 Oct a", true),
+            tuple("21 Oct b", true),
+            tuple("24 Oct", true));
+        assertThat(board.days().getFirst().cards()).extracting(BoardCard::title, BoardCard::overdue)
+            .containsExactly(tuple("today", false));
+    }
+
+    @Test
+    void an_open_card_becomes_overdue_at_midnight() {
+        var clock = new MutableTestClock(SUNDAY);
+        var board = new BoardHandler(clock, cards);
+        cards.insertOneOff("Water the plants", null, SUNDAY, 0);
+
+        clock.set(SUNDAY, LocalTime.of(23, 59, 59));
+        assertThat(board.board().overdue()).isEmpty();
+        assertThat(board.board().days().getFirst().cards()).extracting(BoardCard::overdue).containsExactly(false);
+
+        clock.set(SUNDAY.plusDays(1), LocalTime.MIDNIGHT);
+        assertThat(board.board().overdue()).extracting(BoardCard::title, BoardCard::overdue)
+            .containsExactly(tuple("Water the plants", true));
+    }
+
+    /** The example of the slice: due 20 Oct, ticked off 25 Oct: struck through in Today on 25 Oct, gone on 26 Oct. */
+    @Test
+    void a_done_overdue_card_stays_in_the_box_until_the_end_of_the_day_it_was_ticked_off() {
+        var clock = new MutableTestClock(SUNDAY);
+        var board = new BoardHandler(clock, cards);
+        cards.insertOneOff("due 20 Oct", null, LocalDate.of(2026, 10, 20), 0);
+        cards.setDoneOn(1, SUNDAY);
+
+        clock.set(SUNDAY, LocalTime.of(23, 59, 59));
+        assertThat(board.board().overdue()).extracting(BoardCard::title, BoardCard::done, BoardCard::overdue)
+            .containsExactly(tuple("due 20 Oct", true, false));
+
+        clock.set(SUNDAY.plusDays(1), LocalTime.MIDNIGHT);
+        assertThat(board.board().overdue()).isEmpty();
+        assertThat(board.board().days()).allSatisfy(day -> assertThat(day.cards()).isEmpty());
+    }
+
+    @Test
+    void a_card_ticked_off_early_stays_done_on_its_day_until_that_day_is_past() {
+        var clock = new MutableTestClock(SUNDAY);
+        var board = new BoardHandler(clock, cards);
+        var tuesday = SUNDAY.plusDays(2);
+        cards.insertOneOff("Book flights", null, tuesday, 0);
+        cards.setDoneOn(1, SUNDAY);
+
+        assertThat(board.board().days().get(2).cards()).extracting(BoardCard::title, BoardCard::done)
+            .containsExactly(tuple("Book flights", true));
+
+        clock.setToday(tuesday);
+        assertThat(board.board().days().getFirst().cards()).extracting(BoardCard::done).containsExactly(true);
+
+        clock.setToday(tuesday.plusDays(1));
+        assertThat(board.board().overdue()).isEmpty();
+        assertThat(board.board().days()).allSatisfy(day -> assertThat(day.cards()).isEmpty());
+    }
+
+    @Test
+    void a_done_card_after_the_span_is_not_in_future() {
+        var clock = new MutableTestClock(SUNDAY);
+        cards.insertOneOff("far away", null, LocalDate.of(2026, 12, 1), 0);
+        cards.setDoneOn(1, SUNDAY);
+
+        assertThat(new BoardHandler(clock, cards).board().future().nearest()).isEmpty();
     }
 }

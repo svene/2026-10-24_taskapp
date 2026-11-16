@@ -24,6 +24,6 @@ public class BoardHandler {
     public Board board() {
         var today = LocalDate.now(clock);
         var futureFrom = Board.futureFrom(today);
-        return Board.of(today, cards.dueBetween(today, futureFrom.minusDays(1)), cards.openDueFrom(futureFrom));
+        return Board.of(today, cards.overdueBox(today), cards.dueBetween(today, futureFrom.minusDays(1)), cards.openDueFrom(futureFrom));
     }
 }

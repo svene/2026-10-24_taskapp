@@ -9,9 +9,9 @@ import org.svenehrke.taskapp.card.Card;
 
 /**
  * The rolling calendar the owner sees: {@link #SPAN_DAYS} day Columns from today, then Future.
- * {@code days().getFirst()} is Today.
+ * {@code days().getFirst()} is Today; {@code overdue} is the Overdue box at its top.
  */
-public record Board(List<BoardDay> days, Future future) {
+public record Board(List<BoardDay> days, List<BoardCard> overdue, Future future) {
 
     /** The span: Today plus 13 more days. */
     public static final int SPAN_DAYS = 14;
@@ -21,6 +21,7 @@ public record Board(List<BoardDay> days, Future future) {
 
     public Board {
         days = List.copyOf(days);
+        overdue = List.copyOf(overdue);
     }
 
     /** The day after the span, where Future starts. */
@@ -29,10 +30,11 @@ public record Board(List<BoardDay> days, Future future) {
     }
 
     /**
-     * @param inSpan      the Cards due within the span, ordered by due date, position, id
+     * @param overdueBox   the Cards of the Overdue box (see {@code CardRepositorySPI.overdueBox}), in Board order
+     * @param inSpan       the Cards due within the span, ordered by due date, position, id
      * @param openInFuture the open Cards due from {@link #futureFrom} on, in the same order
      */
-    static Board of(LocalDate today, List<Card> inSpan, List<Card> openInFuture) {
+    static Board of(LocalDate today, List<Card> overdueBox, List<Card> inSpan, List<Card> openInFuture) {
         Map<LocalDate, List<BoardCard>> byDay = inSpan.stream()
             .collect(Collectors.groupingBy(Card::dueOn, Collectors.mapping(card -> BoardCard.of(card, today), Collectors.toList())));
         var days = Stream.iterate(today, day -> day.plusDays(1)).limit(SPAN_DAYS)
@@ -40,7 +42,8 @@ public record Board(List<BoardDay> days, Future future) {
             .toList();
         var future = openInFuture.stream().map(card -> BoardCard.of(card, today)).toList();
         int nearest = Math.min(FUTURE_NEAREST, future.size());
-        return new Board(days, new Future(futureFrom(today), future.subList(0, nearest), future.subList(nearest, future.size())));
+        var overdue = overdueBox.stream().map(card -> BoardCard.of(card, today)).toList();
+        return new Board(days, overdue, new Future(futureFrom(today), future.subList(0, nearest), future.subList(nearest, future.size())));
     }
 
     /** One day Column; its Cards in Board order (position, id). */
@@ -62,8 +65,8 @@ public record Board(List<BoardDay> days, Future future) {
     }
 
     /**
-     * A Card as the Board shows it, with what is derived from the facts. {@code recurringTaskId} is null for a
-     * One-off Task.
+     * A Card as the Board shows it, with what is derived from the facts: {@code overdue} = due before today and not
+     * Done. {@code recurringTaskId} is null for a One-off Task.
      */
     public record BoardCard(
         long id,

@@ -27,3 +27,12 @@ body { min-height: 100vh; background: var(--bulma-background); font-size: 14px; 
 .board-column .quick .input:not(:focus):not(.is-danger) { border-color: transparent; box-shadow: none; background: transparent; }
 .more summary { cursor: pointer; color: var(--bulma-link); font-size: 12px; padding: .1rem .15rem; }
 .more .cards { margin-top: .25rem; }
+
+.tcard { display: flex; align-items: baseline; gap: .3rem; }
+.tcard-tick { flex: none; margin: 0; cursor: pointer; }
+.tcard .tcard-date { margin-right: 0; white-space: nowrap; }
+.tcard.is-done .tcard-title, .tcard.is-done .tcard-date { text-decoration: line-through; color: var(--bulma-text-weak); }
+.tcard.is-overdue .tcard-date { color: var(--bulma-danger); }
+.overdue-box { display: flex; flex-direction: column; gap: .25rem; margin-bottom: .4rem; padding: .25rem;
+	background: var(--bulma-danger-soft); border: 1px solid var(--bulma-border); border-radius: var(--bulma-radius-small); }
+.board-notice { grid-column: 1 / -1; margin-bottom: 0; padding: .5rem 2.5rem .5rem .75rem; }

@@ -7,6 +7,7 @@ import jakarta.ws.rs.FormParam;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
@@ -21,7 +22,7 @@ import org.svenehrke.taskapp.html.UiResponse;
 import org.svenehrke.taskapp.html.UiRoute;
 
 /**
- * Creating Cards. It lives in {@code board}, not {@code card}: every response is the Board, and {@code card}
+ * Creating Cards and ticking them off. It lives in {@code board}, not {@code card}: every response is the Board, and {@code card}
  * must not depend on {@code board} (board → card already).
  */
 @RunOnVirtualThread
@@ -66,6 +67,22 @@ public class CardReceiver {
             case ParsedOneOffTask.Invalid invalid -> UiResponse.response(Status.BAD_REQUEST, UiRoute.BoardPage,
                 BoardVM.of(boardHandler.board(), null, new QuickAddError(dueOn, String.join(" ", invalid.errors().values()))));
         };
+    }
+
+    /** The Tick checkbox, ticked. An unknown id is rejected ({@link RejectedExceptionMapper}). */
+    @POST
+    @Path("{id}/tick")
+    public UiResponse tick(@PathParam("id") long id) {
+        cardHandler.tick(id);
+        return UiResponse.of(UiRoute.BoardPage, BoardVM.of(boardHandler.board()));
+    }
+
+    /** The Tick checkbox, unticked. An unknown id is rejected ({@link RejectedExceptionMapper}). */
+    @POST
+    @Path("{id}/untick")
+    public UiResponse untick(@PathParam("id") long id) {
+        cardHandler.untick(id);
+        return UiResponse.of(UiRoute.BoardPage, BoardVM.of(boardHandler.board()));
     }
 
     private static String orEmpty(String value) {

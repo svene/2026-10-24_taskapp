@@ -42,9 +42,10 @@ class CardReceiverTest {
               "dayMonth": "26 Oct",
               "today": false,
               "weekend": false,
+              "overdue": [],
               "cards": [
-                {"id": "${json-unit.any-string}", "taskId": "${json-unit.any-number}", "title": "Water the plants", "dateLabel": null},
-                {"id": "${json-unit.any-string}", "taskId": "${json-unit.any-number}", "title": "Buy stamps",       "dateLabel": null}
+                {"id": "${json-unit.any-string}", "taskId": "${json-unit.any-number}", "title": "Water the plants", "dateLabel": null, "done": false, "overdue": false},
+                {"id": "${json-unit.any-string}", "taskId": "${json-unit.any-number}", "title": "Buy stamps",       "dateLabel": null, "done": false, "overdue": false}
               ],
               "quickAddError": null
             }

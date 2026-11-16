@@ -1,5 +1,7 @@
 import {html} from "hono/html";
-import type {BoardVM, CardVM, DayColumnVM, EditCardVM, FutureVM, MovesVM, NewCardVM} from "../html/generated/vm-types";
+import type {
+	BoardVM, CardVM, DayColumnVM, EditCardVM, EditOccurrenceVM, FutureVM, MovesVM, NewCardVM,
+} from "../html/generated/vm-types";
 import type {HtmlResult} from "../html/route-types";
 
 // Two rows of 7 day Columns, with Future as a sidebar spanning both rows (spec §3.1).
@@ -15,6 +17,7 @@ export const BoardPage = (vm: BoardVM): HtmlResult => html`
 		${FutureColumn(vm.future)}
 		${vm.newCard ? NewCardModal(vm.newCard) : ""}
 		${vm.editCard ? EditCardModal(vm.editCard) : ""}
+		${vm.editOccurrence ? EditOccurrenceModal(vm.editOccurrence) : ""}
 	</div>
 `;
 
@@ -69,9 +72,9 @@ const FutureColumn = (f: FutureVM): HtmlResult => html`
 `;
 
 // Compact: the Tick checkbox, the title and markers; notes are shown in the modal. Cards in Future and in the
-// Overdue box also show their date, Overdue ones with ⚠; a moved Card shows ⇢ and its original due date.
-// Ticking posts to tick or untick, the card buttons (on hover or focus) to move or open the Edit modal (One-off
-// Tasks only); each is answered with the Board.
+// Overdue box also show their date, Overdue ones with ⚠; an Occurrence shows ↻; a moved Card shows ⇢ and its
+// original due date. Ticking posts to tick or untick, the card buttons (on hover or focus) to move or open the Edit
+// modal; each is answered with the Board.
 const Card = (c: CardVM): HtmlResult => html`
 	<div class="tcard ${c.done ? "is-done" : ""} ${c.overdue ? "is-overdue" : ""}" id="${c.id}">
 		<input type="hidden" name="taskId" value="${c.taskId}">
@@ -80,18 +83,19 @@ const Card = (c: CardVM): HtmlResult => html`
 			hx-post="/cards/${c.taskId}/${c.done ? "untick" : "tick"}" hx-trigger="change">
 		${c.dateLabel ? html`<span class="tcard-date">${c.overdue ? "⚠ " : ""}${c.dateLabel}</span>` : ""}
 		<span class="tcard-title">${c.title}</span>
+		${c.recurring ? html`<span class="tcard-recurring" title="Recurring task" aria-label="Recurring task">↻</span>` : ""}
 		${c.originalLabel ? html`<span class="tcard-original" title="Original due date ${c.originalLabel}">⇢ ${c.originalLabel}</span>` : ""}
-		${c.moves || c.editable ? CardButtons(c) : ""}
+		${CardButtons(c)}
 	</div>
 `;
 
 // The Move buttons are the non-drag fallback (spec §3.2): absolute dates from the server, posted as the Move's
-// target. A Done Card has no Move buttons, but a Done One-off Task can still be edited.
+// target. A Done Card has no Move buttons, but it can still be edited.
 const CardButtons = (c: CardVM): HtmlResult => html`
 	<span class="tcard-actions">
 		${c.moves ? MoveButtons(c.taskId, c.title, c.moves) : ""}
-		${c.editable ? html`<button type="button" class="tcard-move" id="edit-${c.taskId}" title="Edit ${c.title}"
-			aria-label="Edit ${c.title}" hx-get="/cards/${c.taskId}/edit">✎</button>` : ""}
+		<button type="button" class="tcard-move" id="edit-${c.taskId}" title="Edit ${c.title}"
+			aria-label="Edit ${c.title}" hx-get="/cards/${c.taskId}/edit">✎</button>
 	</span>
 `;
 
@@ -108,45 +112,92 @@ const MoveButton = (taskId: number, target: string, label: string, title: string
 
 const closeModal = "this.closest('.modal').remove()";
 
-// The New Task modal (One-off only in v1 so far).
-const NewCardModal = (f: NewCardVM): HtmlResult => TaskModal({
-	id: "new-card", heading: "New task", action: "/cards", submit: "Create",
-	title: f.title, notes: f.notes, dueOn: f.dueOn, minDueOn: undefined, errors: f.errors,
-});
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+// The New Task modal (spec §3.2): One-off (a due date) or Repeats on a calendar (Weekly so far: weekdays, every N
+// weeks, a Start date). Only the chosen kind's fields are shown (CSS :has); the server validates only those.
+const NewCardModal = (f: NewCardVM): HtmlResult => Modal("new-card", "New task", "/cards", "Create", html`
+	${TitleNotes("new-card", f.title, f.notes, f.errors)}
+	<div class="field">
+		<div class="control repeats">
+			<label class="radio"><input type="radio" name="repeats" value="once" id="new-card-once"
+				${f.repeats === "once" ? "checked" : ""}> One-off</label>
+			<label class="radio"><input type="radio" name="repeats" value="calendar" id="new-card-calendar"
+				${f.repeats === "calendar" ? "checked" : ""}> Repeats on a calendar</label>
+		</div>
+	</div>
+	<div class="once-only">
+		${DueField("new-card", f.dueOn, undefined, f.errors["dueOn"])}
+	</div>
+	<div class="calendar-only">
+		${Field("new-card", "Repeats", "kind", f.errors["kind"], html`
+			<div class="select"><select id="new-card-kind" name="kind">
+				<option value="WEEKLY" ${f.kind === "WEEKLY" ? "selected" : ""}>Weekly</option>
+			</select></div>`)}
+		<div class="field">
+			<span class="label">On</span>
+			<div class="control weekdays" id="new-card-weekdays">
+				${WEEKDAYS.map((day, i) => html`
+					<label class="checkbox"><input type="checkbox" name="weekdays" value="${i + 1}" id="new-card-weekday-${i + 1}"
+						${f.weekdays.includes(i + 1) ? "checked" : ""}> ${day}</label>`)}
+			</div>
+			${f.errors["weekdays"] ? html`<p class="help is-danger">${f.errors["weekdays"]}</p>` : ""}
+		</div>
+		${Field("new-card", "Every N weeks", "everyWeeks", f.errors["everyWeeks"], html`
+			<input class="input every-weeks ${f.errors["everyWeeks"] ? "is-danger" : ""}" id="new-card-everyWeeks"
+				name="everyWeeks" type="number" min="1" value="${f.everyWeeks}">`)}
+		${Field("new-card", "Starts", "startsOn", f.errors["startsOn"], html`
+			<input class="input ${f.errors["startsOn"] ? "is-danger" : ""}" id="new-card-startsOn" name="startsOn"
+				type="date" value="${f.startsOn}">`)}
+	</div>
+`);
 
 // The Edit modal of a One-off Task (spec §3.2). A changed due date is a Move to the bottom of that day; the date
 // picker starts at today (or the Overdue Card's own day, so it can keep it).
-const EditCardModal = (f: EditCardVM): HtmlResult => TaskModal({
-	id: "edit-card", heading: "Edit task", action: `/cards/${f.id}`, submit: "Save",
-	title: f.title, notes: f.notes, dueOn: f.dueOn, minDueOn: f.minDueOn, errors: f.errors,
-});
+const EditCardModal = (f: EditCardVM): HtmlResult => Modal("edit-card", "Edit task", `/cards/${f.id}`, "Save", html`
+	${TitleNotes("edit-card", f.title, f.notes, f.errors)}
+	${DueField("edit-card", f.dueOn, f.minDueOn, f.errors["dueOn"])}
+`);
 
-type TaskForm = {
-	id: string; heading: string; action: string; submit: string;
-	title: string; notes: string; dueOn: string; minDueOn: string | undefined; errors: Record<string, string>;
-};
+// The Edit modal of an Occurrence (spec §3.2): its Recurring Task's title, notes and Schedule read-only; the due
+// date (a Move, as above) and Done editable.
+const EditOccurrenceModal = (f: EditOccurrenceVM): HtmlResult =>
+	Modal("edit-occurrence", "Edit occurrence", `/cards/${f.id}/occurrence`, "Save", html`
+		<p class="title is-5" id="edit-occurrence-title">${f.title} <span title="Recurring task">↻</span></p>
+		${f.notes ? html`<p class="occurrence-notes" id="edit-occurrence-notes">${f.notes}</p>` : ""}
+		<p class="help" id="edit-occurrence-schedule">${f.schedule}</p>
+		${DueField("edit-occurrence", f.dueOn, f.minDueOn, f.errors["dueOn"])}
+		<div class="field">
+			<label class="checkbox"><input type="checkbox" name="done" id="edit-occurrence-done" ${f.done ? "checked" : ""}>
+				Done</label>
+		</div>
+	`);
 
-// One task form in a modal. It closes client-side: background, ×, Cancel or Escape.
-const TaskModal = (f: TaskForm): HtmlResult => html`
-	<div class="modal is-active" id="${f.id}" onkeydown="if (event.key === 'Escape') ${closeModal}">
+const TitleNotes = (form: string, title: string, notes: string, errors: Record<string, string>): HtmlResult => html`
+	${Field(form, "Title", "title", errors["title"], html`
+		<input class="input ${errors["title"] ? "is-danger" : ""}" id="${form}-title" name="title"
+			value="${title}" autocomplete="off" autofocus>`)}
+	${Field(form, "Notes", "notes", undefined, html`
+		<textarea class="textarea" id="${form}-notes" name="notes" rows="3">${notes}</textarea>`)}
+`;
+
+const DueField = (form: string, dueOn: string, minDueOn: string | undefined, error: string | undefined): HtmlResult =>
+	Field(form, "Due", "dueOn", error, html`
+		<input class="input ${error ? "is-danger" : ""}" id="${form}-dueOn" name="dueOn" type="date"
+			value="${dueOn}" ${minDueOn ? html`min="${minDueOn}"` : ""}>`);
+
+// A form in a modal. It closes client-side: background, ×, Cancel or Escape.
+const Modal = (id: string, heading: string, action: string, submit: string, body: HtmlResult): HtmlResult => html`
+	<div class="modal is-active" id="${id}" onkeydown="if (event.key === 'Escape') ${closeModal}">
 		<div class="modal-background" onclick="${closeModal}"></div>
-		<form class="modal-card" hx-post="${f.action}">
+		<form class="modal-card" hx-post="${action}">
 			<header class="modal-card-head">
-				<p class="modal-card-title">${f.heading}</p>
+				<p class="modal-card-title">${heading}</p>
 				<button type="button" class="delete" aria-label="close" onclick="${closeModal}"></button>
 			</header>
-			<section class="modal-card-body">
-				${Field(f.id, "Title", "title", f.errors["title"], html`
-					<input class="input ${f.errors["title"] ? "is-danger" : ""}" id="${f.id}-title" name="title"
-						value="${f.title}" autocomplete="off" autofocus>`)}
-				${Field(f.id, "Notes", "notes", undefined, html`
-					<textarea class="textarea" id="${f.id}-notes" name="notes" rows="3">${f.notes}</textarea>`)}
-				${Field(f.id, "Due", "dueOn", f.errors["dueOn"], html`
-					<input class="input ${f.errors["dueOn"] ? "is-danger" : ""}" id="${f.id}-dueOn" name="dueOn" type="date"
-						value="${f.dueOn}" ${f.minDueOn ? html`min="${f.minDueOn}"` : ""} required>`)}
-			</section>
+			<section class="modal-card-body">${body}</section>
 			<footer class="modal-card-foot buttons">
-				<button type="submit" class="button is-link">${f.submit}</button>
+				<button type="submit" class="button is-link">${submit}</button>
 				<button type="button" class="button" onclick="${closeModal}">Cancel</button>
 			</footer>
 		</form>

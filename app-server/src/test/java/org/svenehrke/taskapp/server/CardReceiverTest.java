@@ -45,9 +45,9 @@ class CardReceiverTest {
               "overdue": [],
               "cards": [
                 {"id": "${json-unit.any-string}", "taskId": "${json-unit.any-number}", "title": "Water the plants", "dateLabel": null, "done": false, "overdue": false,
-                 "originalLabel": null, "moves": {"toToday": null, "plusDay": "2026-10-27", "plusWeek": "2026-11-02"}, "editable": true},
+                 "originalLabel": null, "moves": {"toToday": null, "plusDay": "2026-10-27", "plusWeek": "2026-11-02"}, "recurring": false},
                 {"id": "${json-unit.any-string}", "taskId": "${json-unit.any-number}", "title": "Buy stamps",       "dateLabel": null, "done": false, "overdue": false,
-                 "originalLabel": null, "moves": {"toToday": null, "plusDay": "2026-10-27", "plusWeek": "2026-11-02"}, "editable": true}
+                 "originalLabel": null, "moves": {"toToday": null, "plusDay": "2026-10-27", "plusWeek": "2026-11-02"}, "recurring": false}
               ],
               "quickAddError": null
             }
@@ -75,9 +75,14 @@ class CardReceiverTest {
 
         assertThatJson(json).inPath("vm.newCard").isEqualTo("""
             {
+              "repeats": "once",
               "title": "",
               "notes": "",
               "dueOn": "2026-10-28",
+              "kind": "WEEKLY",
+              "weekdays": [3],
+              "everyWeeks": "1",
+              "startsOn": "2026-10-25",
               "errors": {}
             }
             """);
@@ -108,9 +113,14 @@ class CardReceiverTest {
 
         assertThatJson(json).inPath("vm.newCard").isEqualTo("""
             {
+              "repeats": "once",
               "title": "",
               "notes": "window seat",
               "dueOn": "2026-10-27",
+              "kind": "",
+              "weekdays": [],
+              "everyWeeks": "",
+              "startsOn": "",
               "errors": {"title": "Title must not be blank."}
             }
             """);

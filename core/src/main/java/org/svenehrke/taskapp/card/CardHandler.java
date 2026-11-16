@@ -100,6 +100,33 @@ public class CardHandler {
         cards.setTitleAndNotes(id, title, notes);
     }
 
+    /**
+     * The Card the edit modal opens with: a One-off Task, or an Occurrence (then showing its Recurring Task's title
+     * and notes, which the read joins in).
+     *
+     * @throws RejectedException for an unknown id
+     */
+    @Transactional
+    public Card card(long id) {
+        return existing(id);
+    }
+
+    /**
+     * The Occurrence edit modal's save (spec §3.2): only its due date and Done. A changed {@code dueOn} goes through
+     * {@link #move} to the bottom of that day; Done is set around it (a Done Card cannot be moved), all in one
+     * transaction, so a rejected Move saves nothing.
+     *
+     * @throws RejectedException for an unknown id, a One-off Task, or a rejected Move (past day)
+     */
+    @Transactional
+    public void editOccurrence(long id, LocalDate dueOn, boolean done) {
+        var card = existing(id);
+        if (card.recurringTaskId() == null) throw new RejectedException("A one-off task is edited in its own modal.");
+        if (card.done() && !done) cards.setDoneOn(id, null);
+        if (!dueOn.equals(card.dueOn())) move(id, dueOn.toString(), null);
+        if (done && !card.done()) cards.setDoneOn(id, LocalDate.now(clock));
+    }
+
     private Card existing(long id) {
         return cards.find(id).orElseThrow(() -> new RejectedException("That task does not exist (any more)."));
     }

@@ -263,4 +263,38 @@ class CardHandlerTest {
 
         assertThat(cards.all()).extracting(Card::title, Card::done).containsExactly(tuple("Water the plants", true));
     }
+
+    @Test
+    void edit_of_an_occurrence_moves_it_and_ticks_it_off() {
+        cards.insertOneOff("already there", null, TUE, 0);
+        cards.insertOccurrence(7, MON, 0);
+
+        handler.editOccurrence(2, TUE, true);
+
+        assertThat(cards.all()).extracting(Card::id, Card::dueOn, Card::originalDueOn, Card::position, Card::doneOn)
+            .containsExactly(tuple(1L, TUE, TUE, 0, null), tuple(2L, TUE, MON, 1, MON));
+    }
+
+    /** Unticked first, so a Done Occurrence can move again. */
+    @Test
+    void edit_of_a_done_occurrence_unticks_it_and_moves_it() {
+        cards.insertOccurrence(7, MON, 0);
+        handler.tick(1);
+
+        handler.editOccurrence(1, TUE, false);
+
+        assertThat(cards.all()).extracting(Card::dueOn, Card::doneOn).containsExactly(tuple(TUE, null));
+    }
+
+    @Test
+    void edit_of_an_occurrence_rejects_a_one_off_task_and_a_past_day() {
+        cards.insertOneOff("Water plants", null, MON, 0);
+        cards.insertOccurrence(7, MON, 0);
+
+        assertThatThrownBy(() -> handler.editOccurrence(1, MON, true))
+            .isInstanceOf(RejectedException.class).hasMessage("A one-off task is edited in its own modal.");
+        assertThatThrownBy(() -> handler.editOccurrence(2, MON.minusDays(1), true))
+            .isInstanceOf(RejectedException.class).hasMessage("A task cannot be moved to a past day.");
+        assertThat(cards.all()).extracting(Card::dueOn, Card::doneOn).containsExactly(tuple(MON, null), tuple(MON, null));
+    }
 }

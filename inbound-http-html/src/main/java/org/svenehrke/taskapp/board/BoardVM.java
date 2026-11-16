@@ -7,15 +7,21 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 import org.svenehrke.taskapp.board.Board.BoardCard;
 import org.svenehrke.taskapp.card.Card;
+import org.svenehrke.taskapp.recurring.RecurringTask;
+import org.svenehrke.taskapp.recurring.Schedule;
+import org.svenehrke.taskapp.recurring.Weekly;
 
 /**
  * The Board as the browser renders it: {@link Board#SPAN_DAYS} day Columns (Today first), then Future.
- * {@code newCard} is the open New Task modal, {@code editCard} the open Edit modal, each {@code null} when closed.
+ * {@code newCard} is the open New Task modal, {@code editCard} the open Edit modal of a One-off Task,
+ * {@code editOccurrence} the open Edit modal of an Occurrence, each {@code null} when closed.
  * {@code notice} is why the last command was rejected, {@code null} otherwise.
  */
-public record BoardVM(List<DayColumnVM> days, FutureVM future, NewCardVM newCard, EditCardVM editCard, String notice) {
+public record BoardVM(List<DayColumnVM> days, FutureVM future, NewCardVM newCard, EditCardVM editCard,
+    EditOccurrenceVM editOccurrence, String notice) {
 
     private static final DateTimeFormatter WEEKDAY = DateTimeFormatter.ofPattern("EEE", Locale.ENGLISH);
     private static final DateTimeFormatter DAY_MONTH = DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH);
@@ -31,13 +37,19 @@ public record BoardVM(List<DayColumnVM> days, FutureVM future, NewCardVM newCard
     static BoardVM of(Board board, NewCardVM newCard, QuickAddError quickAddError) {
         var today = board.days().getFirst().date();
         var days = board.days().stream().map(day -> DayColumnVM.of(day, today, board.overdue(), quickAddError)).toList();
-        return new BoardVM(days, FutureVM.of(board.future(), today), newCard, null, null);
+        return new BoardVM(days, FutureVM.of(board.future(), today), newCard, null, null, null);
     }
 
-    /** The Board with the Edit modal open. */
+    /** The Board with the Edit modal of a One-off Task open. */
     static BoardVM of(Board board, EditCardVM editCard) {
         var vm = of(board);
-        return new BoardVM(vm.days, vm.future, null, editCard, null);
+        return new BoardVM(vm.days, vm.future, null, editCard, null, null);
+    }
+
+    /** The Board with the Edit modal of an Occurrence open. */
+    static BoardVM of(Board board, EditOccurrenceVM editOccurrence) {
+        var vm = of(board);
+        return new BoardVM(vm.days, vm.future, null, null, editOccurrence, null);
     }
 
     /** The Board after a rejected command, with its reason as the notice. */
@@ -46,7 +58,7 @@ public record BoardVM(List<DayColumnVM> days, FutureVM future, NewCardVM newCard
     }
 
     private BoardVM withNotice(String notice) {
-        return new BoardVM(days, future, newCard, editCard, notice);
+        return new BoardVM(days, future, newCard, editCard, editOccurrence, notice);
     }
 
     /** A quick-add that was rejected: the raw {@code dueOn} of its Column and the message to show there. */
@@ -90,16 +102,16 @@ public record BoardVM(List<DayColumnVM> days, FutureVM future, NewCardVM newCard
      * Overdue box. {@code done}: struck through, its checkbox ticked. {@code overdue}: shows ⚠.
      * {@code originalLabel}: the original due date ("25 Oct") shown after ⇢ when it differs from the due date.
      * {@code moves}: the card buttons' targets, {@code null} for a Done Card (it cannot be moved).
-     * {@code editable}: shows the Edit button; true for a One-off Task, false for an Occurrence.
+     * {@code recurring}: an Occurrence, shows ↻ (its Edit modal is the Occurrence one).
      */
     public record CardVM(String id, long taskId, String title, String dateLabel, boolean done, boolean overdue,
-        String originalLabel, MovesVM moves, boolean editable) {
+        String originalLabel, MovesVM moves, boolean recurring) {
 
         static CardVM of(BoardCard card, LocalDate today, boolean withDate) {
             return new CardVM("card-" + card.id(), card.id(), card.title(),
                 withDate ? DAY_MONTH.format(card.dueOn()) : null, card.done(), card.overdue(),
                 card.rescheduled() ? DAY_MONTH.format(card.originalDueOn()) : null,
-                card.done() ? null : MovesVM.of(card, today), card.recurringTaskId() == null);
+                card.done() ? null : MovesVM.of(card, today), card.recurringTaskId() != null);
         }
     }
 
@@ -117,11 +129,31 @@ public record BoardVM(List<DayColumnVM> days, FutureVM future, NewCardVM newCard
         }
     }
 
-    /** The New Task modal: the values typed so far and the message per field ({@code title}, {@code dueOn}). */
-    public record NewCardVM(String title, String notes, String dueOn, Map<String, String> errors) {
+    /**
+     * The New Task modal: the values typed so far and the message per field. {@code repeats}: {@code once} (a One-off
+     * Task, due {@code dueOn}) or {@code calendar} (a Recurring Task of Schedule {@code kind}, so far only
+     * {@code WEEKLY}: {@code weekdays} as ISO numbers 1 = Monday .. 7 = Sunday, every {@code everyWeeks} weeks from
+     * {@code startsOn}).
+     */
+    public record NewCardVM(String repeats, String title, String notes, String dueOn, String kind, List<Integer> weekdays,
+        String everyWeeks, String startsOn, Map<String, String> errors) {
 
-        static NewCardVM empty(String dueOn) {
-            return new NewCardVM("", "", dueOn, Map.of());
+        public static final String ONCE = "once";
+        public static final String CALENDAR = "calendar";
+
+        /** A One-off Task due {@code dueOn}; switched to Weekly, it repeats on that weekday from today. */
+        static NewCardVM empty(String dueOn, LocalDate today) {
+            var weekday = parseOrNull(dueOn);
+            return new NewCardVM(ONCE, "", "", dueOn, "WEEKLY",
+                List.of((weekday == null ? today : weekday).getDayOfWeek().getValue()), "1", today.toString(), Map.of());
+        }
+
+        private static LocalDate parseOrNull(String date) {
+            try {
+                return LocalDate.parse(date);
+            } catch (RuntimeException e) {
+                return null;
+            }
         }
     }
 
@@ -142,8 +174,39 @@ public record BoardVM(List<DayColumnVM> days, FutureVM future, NewCardVM newCard
             return new EditCardVM(card.id(), title, notes, dueOn, minDueOn(card, today), errors);
         }
 
-        private static String minDueOn(Card card, LocalDate today) {
+        static String minDueOn(Card card, LocalDate today) {
             return (card.dueOn().isBefore(today) ? card.dueOn() : today).toString();
+        }
+    }
+
+    /**
+     * The Edit modal of an Occurrence (spec §3.2): only {@code dueOn} (a Move, the date picker's min as for
+     * {@link EditCardVM}) and {@code done} change. {@code title}, {@code notes} and {@code schedule} (a sentence)
+     * are its Recurring Task's, shown read-only. {@code errors}: the message per field ({@code dueOn}).
+     */
+    public record EditOccurrenceVM(long id, String title, String notes, String schedule, String dueOn, String minDueOn,
+        boolean done, Map<String, String> errors) {
+
+        private static final DateTimeFormatter DAY_MONTH_YEAR = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH);
+
+        static EditOccurrenceVM of(Card card, RecurringTask task, LocalDate today) {
+            return new EditOccurrenceVM(card.id(), task.title(), Objects.requireNonNullElse(task.notes(), ""),
+                describe(task.schedule()), card.dueOn().toString(), EditCardVM.minDueOn(card, today), card.done(), Map.of());
+        }
+
+        static EditOccurrenceVM rejected(Card card, RecurringTask task, LocalDate today, String dueOn, boolean done,
+            Map<String, String> errors) {
+            var vm = of(card, task, today);
+            return new EditOccurrenceVM(vm.id, vm.title, vm.notes, vm.schedule, dueOn, vm.minDueOn, done, errors);
+        }
+
+        /** "Every week on Mon, Thu, from 25 Oct 2026"; "Every 2 weeks on Sun, from ...". */
+        static String describe(Schedule schedule) {
+            return switch (schedule) {
+                case Weekly weekly -> (weekly.everyWeeks() == 1 ? "Every week" : "Every " + weekly.everyWeeks() + " weeks")
+                    + " on " + weekly.weekdays().stream().sorted().map(WEEKDAY::format).collect(Collectors.joining(", "))
+                    + ", from " + DAY_MONTH_YEAR.format(weekly.startsOn());
+            };
         }
     }
 }

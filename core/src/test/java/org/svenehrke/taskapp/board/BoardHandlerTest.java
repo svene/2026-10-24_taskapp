@@ -11,15 +11,19 @@ import org.junit.jupiter.api.Test;
 import org.svenehrke.taskapp.board.Board.BoardCard;
 import org.svenehrke.taskapp.card.InMemoryCardRepository;
 import org.svenehrke.taskapp.card.MutableTestClock;
+import org.svenehrke.taskapp.recurring.InMemoryRecurringTaskRepository;
+import org.svenehrke.taskapp.recurring.OccurrenceProducer;
 
 class BoardHandlerTest {
 
     private static final ZoneId ZONE = ZoneId.of("Europe/Zurich");
     private static final LocalDate SUNDAY = LocalDate.of(2026, 10, 25);
 
+    private static final OccurrenceProducer NO_RECURRING = new OccurrenceProducer(new InMemoryRecurringTaskRepository());
+
     private final InMemoryCardRepository cards = new InMemoryCardRepository();
     private final BoardHandler handler =
-        new BoardHandler(Clock.fixed(SUNDAY.atTime(23, 30).atZone(ZONE).toInstant(), ZONE), cards);
+        new BoardHandler(Clock.fixed(SUNDAY.atTime(23, 30).atZone(ZONE).toInstant(), ZONE), cards, NO_RECURRING);
 
     @Test
     void board_spans_fourteen_days_from_today_then_future() {
@@ -108,7 +112,7 @@ class BoardHandlerTest {
     @Test
     void an_open_card_becomes_overdue_at_midnight() {
         var clock = new MutableTestClock(SUNDAY);
-        var board = new BoardHandler(clock, cards);
+        var board = new BoardHandler(clock, cards, NO_RECURRING);
         cards.insertOneOff("Water the plants", null, SUNDAY, 0);
 
         clock.set(SUNDAY, LocalTime.of(23, 59, 59));
@@ -124,7 +128,7 @@ class BoardHandlerTest {
     @Test
     void a_done_overdue_card_stays_in_the_box_until_the_end_of_the_day_it_was_ticked_off() {
         var clock = new MutableTestClock(SUNDAY);
-        var board = new BoardHandler(clock, cards);
+        var board = new BoardHandler(clock, cards, NO_RECURRING);
         cards.insertOneOff("due 20 Oct", null, LocalDate.of(2026, 10, 20), 0);
         cards.setDoneOn(1, SUNDAY);
 
@@ -140,7 +144,7 @@ class BoardHandlerTest {
     @Test
     void a_card_ticked_off_early_stays_done_on_its_day_until_that_day_is_past() {
         var clock = new MutableTestClock(SUNDAY);
-        var board = new BoardHandler(clock, cards);
+        var board = new BoardHandler(clock, cards, NO_RECURRING);
         var tuesday = SUNDAY.plusDays(2);
         cards.insertOneOff("Book flights", null, tuesday, 0);
         cards.setDoneOn(1, SUNDAY);
@@ -162,6 +166,6 @@ class BoardHandlerTest {
         cards.insertOneOff("far away", null, LocalDate.of(2026, 12, 1), 0);
         cards.setDoneOn(1, SUNDAY);
 
-        assertThat(new BoardHandler(clock, cards).board().future().nearest()).isEmpty();
+        assertThat(new BoardHandler(clock, cards, NO_RECURRING).board().future().nearest()).isEmpty();
     }
 }

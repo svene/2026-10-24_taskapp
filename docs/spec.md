@@ -298,7 +298,7 @@ create index card_due_on_position on card (due_on, position);
 
 Decided in [Run setup for the built app](https://github.com/svene/2026-10-24_taskapp/issues/12).
 
-- **Dev:** `quarkus dev` on port 8080. The `%dev` DB is `app-server/.data/dev.db` (gitignored).
+- **Dev:** `quarkus dev` on port 8080. The `%dev` DB is `app-server/.data/taskapp/dev.db` (gitignored).
 - **Built:**
   - Quarkus uber-jar, no native build.
   - `install.sh` builds it and copies it to `~/.local/share/taskapp/taskapp.jar`, and copies `bin/taskapp` to `~/.local/bin/taskapp`. The script is `exec java -jar … "$@"`.

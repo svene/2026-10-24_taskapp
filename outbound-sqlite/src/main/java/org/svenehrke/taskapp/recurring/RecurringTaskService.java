@@ -17,27 +17,33 @@ import org.svenehrke.taskapp.sqlite.Db;
 class RecurringTaskService implements RecurringTaskRepositorySPI {
 
     private static final String COLUMNS =
-        "id, title, notes, starts_on, stopped_on, kind, every_weeks, weekdays, month_day, produced_through";
+        "id, title, notes, starts_on, stopped_on, kind, every_weeks, weekdays, month_day, after_amount, after_unit,"
+            + " produced_through";
 
     @Inject
     Db db;
 
     @Override
-    public void insert(String title, String notes, Schedule schedule, LocalDate producedThrough) {
-        switch (schedule) {
-            case Weekly weekly -> db.update("INSERT INTO recurring_task"
-                    + " (title, notes, starts_on, kind, every_weeks, weekdays, produced_through)"
-                    + " VALUES (?, ?, ?, 'WEEKLY', ?, ?, ?)",
+    public long insert(String title, String notes, Schedule schedule, LocalDate producedThrough) {
+        return switch (schedule) {
+            case Weekly weekly -> insertReturningId(
+                "(title, notes, starts_on, kind, every_weeks, weekdays, produced_through) VALUES (?, ?, ?, 'WEEKLY', ?, ?, ?)",
                 title, notes, weekly.startsOn(), weekly.everyWeeks(), mask(weekly.weekdays()), producedThrough);
-            case MonthlyOnDay monthly -> db.update("INSERT INTO recurring_task"
-                    + " (title, notes, starts_on, kind, month_day, produced_through)"
-                    + " VALUES (?, ?, ?, 'MONTHLY_DAY', ?, ?)",
+            case MonthlyOnDay monthly -> insertReturningId(
+                "(title, notes, starts_on, kind, month_day, produced_through) VALUES (?, ?, ?, 'MONTHLY_DAY', ?, ?)",
                 title, notes, monthly.startsOn(), monthly.day(), producedThrough);
-            case MonthlyLastDay monthly -> db.update("INSERT INTO recurring_task"
-                    + " (title, notes, starts_on, kind, produced_through)"
-                    + " VALUES (?, ?, ?, 'MONTHLY_LAST', ?)",
+            case MonthlyLastDay monthly -> insertReturningId(
+                "(title, notes, starts_on, kind, produced_through) VALUES (?, ?, ?, 'MONTHLY_LAST', ?)",
                 title, notes, monthly.startsOn(), producedThrough);
-        }
+            case AfterDone afterDone -> insertReturningId(
+                "(title, notes, starts_on, kind, after_amount, after_unit) VALUES (?, ?, ?, 'AFTER_DONE', ?, ?)",
+                title, notes, afterDone.startsOn(), afterDone.amount(), afterDone.unit().name());
+        };
+    }
+
+    private long insertReturningId(String columnsAndValues, Object... params) {
+        return db.queryOne("INSERT INTO recurring_task " + columnsAndValues + " RETURNING id", rs -> rs.getLong(1), params)
+            .orElseThrow();
     }
 
     @Override
@@ -61,6 +67,12 @@ class RecurringTaskService implements RecurringTaskRepositorySPI {
     }
 
     @Override
+    public Optional<LocalDate> latestOriginalDueOn(long recurringTaskId) {
+        return db.queryOne("SELECT original_due_on FROM card WHERE recurring_task_id = ?"
+            + " ORDER BY original_due_on DESC LIMIT 1", rs -> Db.date(rs, "original_due_on"), recurringTaskId);
+    }
+
+    @Override
     public void setProducedThrough(long id, LocalDate producedThrough) {
         db.update("UPDATE recurring_task SET produced_through = ? WHERE id = ?", producedThrough, id);
     }
@@ -72,7 +84,9 @@ class RecurringTaskService implements RecurringTaskRepositorySPI {
                 Db.date(rs, "starts_on"));
             case "MONTHLY_DAY" -> new MonthlyOnDay(rs.getInt("month_day"), Db.date(rs, "starts_on"));
             case "MONTHLY_LAST" -> new MonthlyLastDay(Db.date(rs, "starts_on"));
-            default -> throw new IllegalStateException("Schedule kind not supported yet: " + kind);
+            case "AFTER_DONE" -> new AfterDone(rs.getInt("after_amount"), AfterDone.Unit.valueOf(rs.getString("after_unit")),
+                Db.date(rs, "starts_on"));
+            default -> throw new IllegalStateException("Unknown Schedule kind: " + kind);
         };
         return new RecurringTask(rs.getLong("id"), rs.getString("title"), rs.getString("notes"), schedule,
             Db.date(rs, "produced_through"), Db.date(rs, "stopped_on"));

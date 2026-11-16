@@ -36,4 +36,17 @@ public class OccurrenceProducer {
             tasks.setProducedThrough(task.id(), last);
         }
     }
+
+    /**
+     * The tick hook of spec §2.3: ticking off an Occurrence of an After-done task that is not Stopped creates its
+     * successor, due {@link AfterDone#next} after {@code doneOn}, but only when the ticked one is the latest (no
+     * Occurrence of the task has a later original due date). Unticking and ticking again therefore creates nothing,
+     * and the unique original due date keeps a repeated call harmless. Anything else is left alone.
+     */
+    public void afterDone(long recurringTaskId, LocalDate originalDueOn, LocalDate doneOn) {
+        var task = tasks.find(recurringTaskId).orElse(null);
+        if (task == null || task.stoppedOn() != null || !(task.schedule() instanceof AfterDone afterDone)) return;
+        if (tasks.latestOriginalDueOn(recurringTaskId).filter(latest -> latest.isAfter(originalDueOn)).isPresent()) return;
+        tasks.insertOccurrence(recurringTaskId, afterDone.next(originalDueOn, doneOn));
+    }
 }

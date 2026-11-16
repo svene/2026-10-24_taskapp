@@ -17,12 +17,18 @@ public class RecurringTaskHandler {
     }
 
     /**
-     * A new Recurring Task. {@code produced_through} starts the day before the Start date, so the next catch-up
-     * (the Board read that follows) produces from the Start date on, backfilling a past one. {@code notes} may be null.
+     * A new Recurring Task; {@code notes} may be null. A calendar task's {@code produced_through} starts the day
+     * before the Start date, so the next catch-up (the Board read that follows) produces from the Start date on,
+     * backfilling a past one. An After-done task gets its first Occurrence on the Start date right away.
      */
     @Transactional
     public void create(String title, String notes, Schedule schedule) {
-        tasks.insert(title, notes, schedule, schedule.startsOn().minusDays(1));
+        switch (schedule) {
+            case AfterDone afterDone -> tasks.insertOccurrence(tasks.insert(title, notes, afterDone, null), afterDone.startsOn());
+            case Weekly w -> tasks.insert(title, notes, w, w.startsOn().minusDays(1));
+            case MonthlyOnDay m -> tasks.insert(title, notes, m, m.startsOn().minusDays(1));
+            case MonthlyLastDay m -> tasks.insert(title, notes, m, m.startsOn().minusDays(1));
+        }
     }
 
     /**

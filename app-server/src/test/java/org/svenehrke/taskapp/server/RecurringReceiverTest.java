@@ -11,12 +11,13 @@ import io.restassured.path.json.JsonPath;
 import io.restassured.response.Response;
 import jakarta.inject.Inject;
 import java.sql.SQLException;
+import java.time.LocalDate;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * Weekly and Monthly Recurring Tasks from the New Task modal, their Occurrences, and the modal's Schedule preview,
+ * Weekly, Monthly and After-done Recurring Tasks from the New Task modal, their Occurrences, and the modal's Schedule preview,
  * with the Clock on Sun 25 Oct 2026.
  */
 @QuarkusTest
@@ -27,6 +28,9 @@ class RecurringReceiverTest {
 
     private static final String RENT = """
         {"title": "Pay the rent", "recurring": true}""";
+
+    private static final String FILTER = """
+        {"title": "Change the water filter", "recurring": true}""";
 
     /** Mon + Thu from today: 26, 29 Oct and 2, 5 Nov in the span (days[1], [4], [8], [11]). */
     private static final String MON_THU_COLUMNS = """
@@ -103,6 +107,8 @@ class RecurringReceiverTest {
               "everyWeeks": "2",
               "monthDay": "",
               "startsOn": "2026-10-25",
+              "afterAmount": "",
+              "afterUnit": "",
               "errors": {"weekdays": "Choose at least one weekday."},
               "preview": {"dates": [], "message": "Choose at least one weekday."}
             }
@@ -189,6 +195,73 @@ class RecurringReceiverTest {
     }
 
     @Test
+    void an_after_done_task_is_due_on_its_start_date_and_described_in_its_occurrence() {
+        var board = jsonBody(createAfterDone("3", "WEEKS"), 200);
+
+        assertThatJson(board).when(IGNORING_EXTRA_FIELDS).inPath("$.vm.days[*].cards").isEqualTo("""
+            [[%s], [], [], [], [], [], [], [], [], [], [], [], [], []]
+            """.formatted(FILTER));
+        assertThatJson(board).inPath("$.vm.future.nearest").isArray().isEmpty();
+        var json = jsonBody(given().when().get("/cards/" + occurrenceOn(board, 0) + "/edit"), 200);
+        assertThatJson(json).inPath("vm.editOccurrence.schedule").isString()
+            .isEqualTo("Every 3 weeks after done, from 25 Oct 2026");
+    }
+
+    /** The example of the After-done slice: due 25 Oct, done on 27 Oct, so the next is due 3 weeks later on 17 Nov. */
+    @Test
+    void ticking_an_after_done_occurrence_produces_the_next_one_counted_from_the_day_it_is_done() {
+        long id = occurrenceOn(jsonBody(createAfterDone("3", "WEEKS"), 200), 0);
+        clock.setToday(LocalDate.of(2026, 10, 27));
+
+        var json = jsonBody(given().when().post("/cards/" + id + "/tick"), 200);
+
+        assertThatJson(json).when(IGNORING_EXTRA_FIELDS).inPath("vm.future.nearest").isEqualTo("""
+            [{"title": "Change the water filter", "dateLabel": "17 Nov", "recurring": true}]
+            """);
+    }
+
+    @Test
+    void ticking_an_after_done_occurrence_again_produces_no_second_successor() {
+        long id = occurrenceOn(jsonBody(createAfterDone("1", "DAYS"), 200), 0);
+        jsonBody(given().when().post("/cards/" + id + "/tick"), 200);
+        jsonBody(given().when().post("/cards/" + id + "/untick"), 200);
+
+        var json = jsonBody(given().when().post("/cards/" + id + "/tick"), 200);
+
+        assertThatJson(json).when(IGNORING_EXTRA_FIELDS).inPath("$.vm.days[*].cards").isEqualTo("""
+            [[{"title": "Change the water filter", "done": true}], [%s], [], [], [], [], [], [], [], [], [], [], [], []]
+            """.formatted(FILTER));
+    }
+
+    @Test
+    void an_after_done_task_without_a_whole_number_reopens_the_modal_with_its_message() {
+        var json = jsonBody(createAfterDone("0", "WEEKS"), 400);
+
+        assertThatJson(json).when(IGNORING_EXTRA_FIELDS).inPath("vm.newCard").isEqualTo("""
+            {
+              "repeats": "afterDone",
+              "afterAmount": "0",
+              "afterUnit": "WEEKS",
+              "errors": {"afterAmount": "Every N days or weeks needs a whole number of at least 1."}
+            }
+            """);
+    }
+
+    @Test
+    void the_preview_of_an_after_done_schedule_shows_its_start_date_and_how_the_rest_follow() {
+        var json = jsonBody(given().queryParam("repeats", "afterDone").queryParam("kind", "WEEKLY")
+            .queryParam("afterAmount", "1").queryParam("afterUnit", "DAYS").queryParam("startsOn", "2026-10-25")
+            .when().get("/schedules/preview"), 200);
+
+        assertThatJson(json).inPath("vm").isEqualTo("""
+            {
+              "dates": ["Sun 25 Oct 2026"],
+              "message": "then 1 day after each time it is done"
+            }
+            """);
+    }
+
+    @Test
     void edit_on_an_occurrence_opens_its_modal_with_the_recurring_task_read_only() {
         long id = occurrenceOn(jsonBody(createWeekly("2026-10-25", "1", "4"), 200), 1);
 
@@ -256,6 +329,13 @@ class RecurringReceiverTest {
             .formParam("dueOn", "2026-10-25").formParam("kind", kind).formParam("everyWeeks", "1")
             .formParam("monthDay", monthDay == null ? "" : monthDay).formParam("startsOn", "2026-10-25")
             .when().post("/cards");
+    }
+
+    private static Response createAfterDone(String afterAmount, String afterUnit) {
+        return given().formParam("repeats", "afterDone").formParam("title", "Change the water filter")
+            .formParam("notes", "").formParam("dueOn", "2026-10-25").formParam("kind", "WEEKLY")
+            .formParam("everyWeeks", "1").formParam("startsOn", "2026-10-25").formParam("afterAmount", afterAmount)
+            .formParam("afterUnit", afterUnit).when().post("/cards");
     }
 
     private static long occurrenceOn(String board, int day) {

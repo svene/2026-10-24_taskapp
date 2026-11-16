@@ -6,6 +6,7 @@ import jakarta.transaction.Transactional;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import org.svenehrke.taskapp.recurring.OccurrenceProducer;
 import org.svenehrke.taskapp.shared.RejectedException;
 import org.svenehrke.taskapp.shared.Span;
 
@@ -15,11 +16,13 @@ public class CardHandler {
 
     private final Clock clock;
     private final CardRepositorySPI cards;
+    private final OccurrenceProducer producer;
 
     @Inject
-    CardHandler(Clock clock, CardRepositorySPI cards) {
+    CardHandler(Clock clock, CardRepositorySPI cards, OccurrenceProducer producer) {
         this.clock = clock;
         this.cards = cards;
+        this.producer = producer;
     }
 
     /** A new One-off Task at the bottom of its day. {@code notes} may be null. */
@@ -31,12 +34,14 @@ public class CardHandler {
 
     /**
      * Ticks the Card off today; its due date and position stay. A Card that is already Done keeps its done date.
+     * Ticking off the latest Occurrence of an After-done task produces its successor.
      *
      * @throws RejectedException for an unknown id
      */
     @Transactional
     public void tick(long id) {
-        if (!existing(id).done()) cards.setDoneOn(id, LocalDate.now(clock));
+        var card = existing(id);
+        if (!card.done()) markDone(card);
     }
 
     /**
@@ -112,9 +117,9 @@ public class CardHandler {
     }
 
     /**
-     * The Occurrence edit modal's save (spec §3.2): only its due date and Done. A changed {@code dueOn} goes through
-     * {@link #move} to the bottom of that day; Done is set around it (a Done Card cannot be moved), all in one
-     * transaction, so a rejected Move saves nothing.
+     * The Occurrence edit modal's save (spec §3.2): only its due date and Done (ticking off as {@link #tick} does).
+     * A changed {@code dueOn} goes through {@link #move} to the bottom of that day; Done is set around it (a Done Card
+     * cannot be moved), all in one transaction, so a rejected Move saves nothing.
      *
      * @throws RejectedException for an unknown id, a One-off Task, or a rejected Move (past day)
      */
@@ -124,7 +129,13 @@ public class CardHandler {
         if (card.recurringTaskId() == null) throw new RejectedException("A one-off task is edited in its own modal.");
         if (card.done() && !done) cards.setDoneOn(id, null);
         if (!dueOn.equals(card.dueOn())) move(id, dueOn.toString(), null);
-        if (done && !card.done()) cards.setDoneOn(id, LocalDate.now(clock));
+        if (done && !card.done()) markDone(card);
+    }
+
+    private void markDone(Card card) {
+        var today = LocalDate.now(clock);
+        cards.setDoneOn(card.id(), today);
+        if (card.recurringTaskId() != null) producer.afterDone(card.recurringTaskId(), card.originalDueOn(), today);
     }
 
     private Card existing(long id) {

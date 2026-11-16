@@ -10,8 +10,11 @@ import java.util.Optional;
  */
 public interface RecurringTaskRepositorySPI {
 
-    /** Inserts a Recurring Task; {@code notes} may be null. */
-    void insert(String title, String notes, Schedule schedule, LocalDate producedThrough);
+    /**
+     * Inserts a Recurring Task and returns its id; {@code notes} may be null, and so may {@code producedThrough}
+     * (After-done Schedules have none).
+     */
+    long insert(String title, String notes, Schedule schedule, LocalDate producedThrough);
 
     Optional<RecurringTask> find(long id);
 
@@ -23,6 +26,9 @@ public interface RecurringTaskRepositorySPI {
      * already has an Occurrence with that original due date (idempotent, spec §2.3).
      */
     void insertOccurrence(long recurringTaskId, LocalDate dueOn);
+
+    /** The highest original due date among the task's Occurrences, Done or not; empty when it has none. */
+    Optional<LocalDate> latestOriginalDueOn(long recurringTaskId);
 
     void setProducedThrough(long id, LocalDate producedThrough);
 }

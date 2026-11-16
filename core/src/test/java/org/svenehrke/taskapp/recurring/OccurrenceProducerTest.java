@@ -84,6 +84,70 @@ class OccurrenceProducerTest {
         assertThat(tasks.occurrences()).isEmpty();
     }
 
+    /** The example of the After-done slice: every 3 weeks from today, ticked off on Tue 27 Oct. */
+    @Test
+    void an_after_done_task_starts_with_one_occurrence_on_its_start_date() {
+        handler.create("Descale the kettle", null, new AfterDone(3, AfterDone.Unit.WEEKS, SUN_25_OCT));
+
+        assertThat(tasks.occurrences()).containsExactly(new Occurrence(1, SUN_25_OCT));
+    }
+
+    @Test
+    void ticking_off_the_latest_occurrence_produces_the_next_n_weeks_after_the_done_date() {
+        handler.create("Descale the kettle", null, new AfterDone(3, AfterDone.Unit.WEEKS, SUN_25_OCT));
+
+        producer.afterDone(1, SUN_25_OCT, date(10, 27));
+
+        assertThat(tasks.occurrences()).extracting(Occurrence::originalDueOn).containsExactly(SUN_25_OCT, date(11, 17));
+    }
+
+    @Test
+    void ticking_off_again_after_an_untick_produces_no_second_successor() {
+        handler.create("Descale the kettle", null, new AfterDone(3, AfterDone.Unit.WEEKS, SUN_25_OCT));
+        producer.afterDone(1, SUN_25_OCT, date(10, 27));
+
+        producer.afterDone(1, SUN_25_OCT, date(10, 28));
+
+        assertThat(tasks.occurrences()).extracting(Occurrence::originalDueOn).containsExactly(SUN_25_OCT, date(11, 17));
+    }
+
+    @Test
+    void ticking_off_late_counts_from_the_done_date() {
+        handler.create("Descale the kettle", null, new AfterDone(10, AfterDone.Unit.DAYS, date(10, 15)));
+
+        producer.afterDone(1, date(10, 15), SUN_25_OCT);
+
+        assertThat(tasks.occurrences()).extracting(Occurrence::originalDueOn).containsExactly(date(10, 15), date(11, 4));
+    }
+
+    @Test
+    void a_stopped_after_done_task_produces_no_successor() {
+        handler.create("Descale the kettle", null, new AfterDone(3, AfterDone.Unit.WEEKS, SUN_25_OCT));
+        tasks.stop(1, SUN_25_OCT);
+
+        producer.afterDone(1, SUN_25_OCT, SUN_25_OCT);
+
+        assertThat(tasks.occurrences()).containsExactly(new Occurrence(1, SUN_25_OCT));
+    }
+
+    @Test
+    void ticking_off_a_calendar_occurrence_produces_nothing_extra() {
+        handler.create("Water plants", null, new Weekly(Set.of(MONDAY, THURSDAY), 1, SUN_25_OCT));
+
+        producer.afterDone(1, date(10, 26), date(10, 26));
+
+        assertThat(tasks.occurrences()).isEmpty();
+    }
+
+    @Test
+    void the_catch_up_leaves_after_done_tasks_alone() {
+        handler.create("Descale the kettle", null, new AfterDone(3, AfterDone.Unit.WEEKS, SUN_25_OCT));
+
+        producer.catchUp(SUN_25_OCT);
+
+        assertThat(tasks.occurrences()).containsExactly(new Occurrence(1, SUN_25_OCT));
+    }
+
     private static LocalDate date(int month, int day) {
         return LocalDate.of(2026, month, day);
     }

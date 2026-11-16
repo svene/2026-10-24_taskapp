@@ -24,8 +24,10 @@ public class InMemoryRecurringTaskRepository implements RecurringTaskRepositoryS
     }
 
     @Override
-    public void insert(String title, String notes, Schedule schedule, LocalDate producedThrough) {
-        rows.add(new RecurringTask(rows.size() + 1, title, notes, schedule, producedThrough, null));
+    public long insert(String title, String notes, Schedule schedule, LocalDate producedThrough) {
+        long id = rows.size() + 1;
+        rows.add(new RecurringTask(id, title, notes, schedule, producedThrough, null));
+        return id;
     }
 
     @Override
@@ -42,6 +44,12 @@ public class InMemoryRecurringTaskRepository implements RecurringTaskRepositoryS
     public void insertOccurrence(long recurringTaskId, LocalDate dueOn) {
         var occurrence = new Occurrence(recurringTaskId, dueOn);
         if (!occurrences.contains(occurrence)) occurrences.add(occurrence);
+    }
+
+    @Override
+    public Optional<LocalDate> latestOriginalDueOn(long recurringTaskId) {
+        return occurrences.stream().filter(o -> o.recurringTaskId() == recurringTaskId)
+            .map(Occurrence::originalDueOn).max(LocalDate::compareTo);
     }
 
     @Override
